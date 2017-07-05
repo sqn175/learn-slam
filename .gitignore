@@ -4,3 +4,6 @@ CMakeLists.txt.user
 build/
 
 *~
+
+# Visual Studio Code 
+.vscode/
