@@ -3,7 +3,3 @@ CMakeLists.txt.user
 # Build results
 build/
 
-*~
-
-# Visual Studio Code 
-.vscode/
