@@ -7,8 +7,28 @@ set(CMAKE_BUILD_TYPE Debug)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
 
-# build ORB_SLAM2_modified
+# Require OpenCV
+find_package(OpenCV 3.3.0 REQUIRED)
+if(NOT OpenCV_FOUND)
+   find_package(OpenCV 2.4.3 QUIET)
+   if(NOT OpenCV_FOUND)
+      message(FATAL_ERROR "OpenCV > 2.4.3 not found.")
+   endif()
+endif()
+message(STATUS "opencv:" ${OpenCV_VERSION})
+
+# Require Eigen3
+find_package(Eigen3 3.1.0 REQUIRED)
+
+# Require Glog
+find_package(Glog REQUIRED)
+
+include_directories(3rdparty/ORB_SLAM2_modified/)
 add_subdirectory(3rdparty/ORB_SLAM2_modified)
+#add_subdirectory(common)
+include_directories(frontend/)
+add_subdirectory(frontend)
+
 
 # build learn_it examples
 set(BUILD_LEARN_EXAMPLE 1)
