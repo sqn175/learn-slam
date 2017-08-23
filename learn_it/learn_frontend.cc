@@ -19,6 +19,7 @@
 #include "pinhole_camera.h"
 #include "camera_measurement.h"
 #include "my_assert.h"
+#include "frontend.h"
 
 int main(int argc, char **argv){
   google::InitGoogleLogging(argv[0]);
@@ -53,7 +54,9 @@ int main(int argc, char **argv){
   
   lslam::CameraMeasurement frame_current(2, image_gray_2, pinhole_camera, orb_extractor);
   
-  
+  lslam::Frontend frontend;
+  frontend.AddCameraMeasurement(frame_prev);
+  frontend.AddCameraMeasurement(frame_current);
   
   return 0 ;
   

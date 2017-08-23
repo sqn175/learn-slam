@@ -7,15 +7,16 @@
 
 namespace lslam {
 
-Frontend::Frontend() : is_initialized_(false) {
+Frontend::Frontend() : state(FrontEndState::kNotReady) {
 }
 
-void Frontend::AddCameraMeasurement(const CameraMeasurement camera_measurement_current) {
+void Frontend::AddCameraMeasurement(CameraMeasurement& camera_measurement_current) {
   
-  // if we get the initialized camera pose
-  if (is_initialized_) {
+  // if initialized 
+  if (state == FrontEndState::kInitialized) {
     // TRACK
-  } else {// We get the initial camera pose by RANSAC 2d2d
+    
+  } else if (state == FrontEndState::kNotInitialized) {
     
     // Find correspondences
     cv::BFMatcher matcher(cv::NORM_HAMMING);
@@ -35,28 +36,51 @@ void Frontend::AddCameraMeasurement(const CameraMeasurement camera_measurement_c
         good_matches.push_back((*it)[0]);
     }
     
+    size_t num_correspondences = good_matches.size();
+    
+    if (num_correspondences < 10) {
+      // Too few correspondences
+      camera_measurement_prev = camera_measurement_current;
+      return;
+    }
+    
     // convert keypoint to vecctor<Point2f>
     std::vector<cv::Point2f> src_points, dst_points;
     for ( auto it = good_matches.begin(); it != good_matches.end(); ++it){
-      src_points.push_back( keypoints_1[(*it).queryIdx].pt );
-      dst_points.push_back( keypoints_2[(*it).trainIdx].pt );
+      src_points.push_back( camera_measurement_prev.keypoints()[(*it).queryIdx].pt );
+      dst_points.push_back( camera_measurement_current.keypoints()[(*it).trainIdx].pt );
     }
     
     // Find fundamental 
     cv::Mat K = camera_measurement_current.camera_model()->K();
-    cv::Mat fundamental_matrix = cv::findFundamentalMat(src_points, dst_points, cv::FM_RANSAC, 3.841, 0.99, cv::noArray());
+    cv::Mat fundamental_matrix = cv::findFundamentalMat(src_points, dst_points, cv::FM_RANSAC, 3.841, 0.99, mask_f);
     cv::Mat essential_matrix = K.t() * fundamental_matrix * K;
-    
+
     // Recover relative camera pose from essential matrix
-    cv::Mat R, t, mask;
-    cv::recoverPose(essential_matrix, src_points, dst_points, K, R, t, mask);
+    cv::Mat R, t;
+    cv::recoverPose(essential_matrix, src_points, dst_points, K, R, t, cv::noArray());
+
+    // Get quality
+    int inlier_cnt = cv::countNonZero(mask_f);
+    double inlier_ratio = double(inlier_cnt) / double(num_correspondences);
     
+    if (inlier_ratio > 0.8) {
+      // result is good
+      state = FrontEndState::kInitialized;
+      // Initialize the camera relative pose
+      cv::Mat T_cw = cv::Mat::eye(4,4,CV_32F);
+      R.copyTo(T_cw.rowRange(0,3).colRange(0,3));
+      t.copyTo(T_cw.rowRange(0,3).col(3));
+      camera_measurement_current.SetPose(T_cw);
+    } 
     
+    camera_measurement_prev = camera_measurement_current;
     
+  } else if (state == FrontEndState::kNotReady) {
+      camera_measurement_prev = camera_measurement_current;
+      state = FrontEndState::kNotInitialized;
+      return;
   }
-  
-  // Update camera measurement
-  camera_measurement_prev = camera_measurement;
   
 }
 
