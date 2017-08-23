@@ -45,7 +45,7 @@ int main(){
   int ini = 20;
   int min = 7;
   ORB_SLAM2::ORBextractor extractor(features, scale, level, ini, min);
-
+  
   // Extract ORB
   std::vector<cv::KeyPoint> keypoints_1, keypoints_2;
   cv::Mat descriptor_1, descriptor_2;
@@ -94,7 +94,7 @@ int main(){
   
   // find Homography
   cv::Mat mask_h;
-  cv::Mat homography_matrix = cv::findHomography(src_points, dst_points, cv::RANSAC, 5, mask_h, 500, 0.99);
+  cv::Mat homography_matrix = cv::findHomography(src_points, dst_points, cv::RANSAC, 5.991, mask_h, 500, 0.99);
   std::cout<< mask_h << std::endl;
   
   // check homography 
@@ -104,12 +104,14 @@ int main(){
   cv::Mat K = (cv::Mat_<double>(3,3) << 458.654, 0, 367.215, 0, 457.296, 248.375, 0, 0, 1);
   
   // find Fundamental
-  cv::Mat mast_f;
-  cv::Mat fundamental_matrix = cv::findFundamentalMat(src_points, dst_points, cv::FM_RANSAC, 3, 0.99, mask_f);
+  cv::Mat mask_f;
+  cv::Mat fundamental_matrix = cv::findFundamentalMat(src_points, dst_points, cv::FM_RANSAC, 3.841, 0.99, mask_f);
   cv::Mat essential_matrix = K.t() * fundamental_matrix * K;
+  std::cout<< mask_f << std::endl;
   
+  int test2 = cv::countNonZero(mask_f);
+  int test1 = cv::countNonZero(mask_h);
   
-
   std::vector<cv::Mat> rotations, translations, normals;
   int test = cv::decomposeHomographyMat(homography_matrix, K, rotations, translations, normals);
   

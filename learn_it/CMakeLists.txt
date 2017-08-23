@@ -7,3 +7,12 @@ target_link_libraries(learn_opencv
   ORB_SLAM2
   frontend
   )
+
+add_executable(learn_frontend learn_frontend.cc)
+target_link_libraries(learn_frontend
+  ${OpenCV_LIBS}
+  ${GLOG_LIBRARY}
+  ORB_SLAM2
+  frontend
+  common
+  )

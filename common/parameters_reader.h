@@ -8,17 +8,24 @@
 
 #include <string>
 
+#include "Parameters.h"
+
 namespace lslam {
 
 class ParamtersReader {
 public:
   ParamtersReader() {}
-  ParamtersReader(std::string file_name);
-  ~ParamtersReader();
+  ParamtersReader(const std::string &file_name);
+
+  ~ParamtersReader() {}
   
-  void Read(std::string file_name);
-private:
-  CameraParams camera_params_;
+  void Read(const std::string &file_name);
+  
+  // Accessors
+  PinholeCameraParameters pinholecamera_params() const;
+  
+protected:
+  PinholeCameraParameters pinholecamera_params_; // Pinhole camera parameters.
 };
 } // namespace LSLAM
 

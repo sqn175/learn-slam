@@ -22,13 +22,19 @@ find_package(Eigen3 3.1.0 REQUIRED)
 
 # Require Glog
 find_package(Glog REQUIRED)
+include_directories(BEFORE ${GLOG_INCLUDE_DIRS})
 
 include_directories(3rdparty/ORB_SLAM2_modified/)
 add_subdirectory(3rdparty/ORB_SLAM2_modified)
-#add_subdirectory(common)
+
+include_directories(common/)
+add_subdirectory(common)
+
 include_directories(frontend/)
 add_subdirectory(frontend)
 
+include_directories(slam/)
+add_subdirectory(slam)
 
 # build learn_it examples
 set(BUILD_LEARN_EXAMPLE 1)
