@@ -7,5 +7,8 @@ pinhole_camera.cc
 cv.cc
 camera_measurement.cc
 frontend.cc
+landmark.cc
+keyframe.cc
+map.cc
 )
 

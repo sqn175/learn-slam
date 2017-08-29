@@ -10,6 +10,7 @@
 #include <opencv2/calib3d.hpp>
 
 #include "camera_measurement.h"
+#include "map.h"
 
 namespace lslam {
 
@@ -28,14 +29,24 @@ public:
   ~Frontend() {
   }
   
+  bool Initialize();
+  
+  void AddCameraMeasurement(std::shared_ptr<CameraMeasurement> camera_measurement_current);
   
   
-  void AddCameraMeasurement(CameraMeasurement& camera_measurement);
   
 private:
-  FrontEndState state;  // frontend state
   
-  CameraMeasurement camera_measurement_prev; // previous camera_measurement
+  Map map_; 
+  
+  FrontEndState state_;  // frontend state
+  
+  std::shared_ptr<CameraMeasurement> camera_measurement_current_; // current camera_measurement
+  
+  std::shared_ptr<CameraMeasurement> camera_measurement_prev_; // previous camera_measurement
+  
+  // Initial data association to create initial map when we have a initial camera pose
+  void DataAssociation();
   
 };
 
