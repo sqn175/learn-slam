@@ -6,15 +6,20 @@
 #ifndef FRONTEND_KEYFRAME_H
 #define FRONTEND_KEYFRAME_H
 
+#include <memory>
+
 #include "camera_measurement.h"
 
 namespace lslam {
 
 class KeyFrame : public CameraMeasurement {
 public:
-  KeyFrame(CameraMeasurement&);
-  ~KeyFrame();
+  KeyFrame(std::shared_ptr<CameraMeasurement> camera_measurement);
+  ~KeyFrame() { }
   
+  std::shared_ptr<CameraMeasurement> camera_measurement() const;
+private:
+  std::shared_ptr<CameraMeasurement> camera_measurement_; // Set camera_measurement_ as keyframe
 };
 
 } // namespace lslam

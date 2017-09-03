@@ -11,11 +11,11 @@ void Map::AddKeyFrame(std::shared_ptr<KeyFrame> keyframe) {
   keyframes_.insert(keyframe);
 }
 
-void Map::AddLandmarkPoint(std::shared_ptr<LandmarkPoint> landmarkpoint) {
+void Map::AddLandmarkPoint(std::shared_ptr<Landmark> landmarkpoint) {
   landmarkpoints_.insert(landmarkpoint);
 }
 
-Map::SizeOfKeyframe() {
+size_t Map::SizeOfKeyframe() const {
   return keyframes_.size();
 }
 } // namespace lslam

@@ -25,7 +25,8 @@ PinholeCamera::PinholeCamera(PinholeCameraParameters params) {
 }
 
 cv::Mat PinholeCamera::K() const {
-  return cv::Mat_<double>(3,3) << fu_, 0, cu_, 0, fv_, cv_, 0, 0, 1;
+  cv::Mat K = (cv::Mat_<double>(3,3) << fu_, 0, cu_, 0, fv_, cv_, 0, 0, 1);
+  return K;
 }
 
 } // namespace lslam

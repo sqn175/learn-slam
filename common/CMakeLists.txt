@@ -3,4 +3,5 @@ project(common)
 
 add_library(${PROJECT_NAME} STATIC
 parameters_reader.cc
+helper.cc
 )

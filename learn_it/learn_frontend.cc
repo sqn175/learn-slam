@@ -45,14 +45,14 @@ int main(int argc, char **argv){
   ASLAM_ASSERT_TRUE( image_1.data, "Could not open or find image.");
   cv::Mat image_gray_1;
   cv::cvtColor(image_1, image_gray_1, cv::COLOR_BGR2GRAY);
-  lslam::CameraMeasurement frame_prev(1, image_gray_1, pinhole_camera, orb_extractor);
+  auto frame_prev = std::make_shared<lslam::CameraMeasurement>(1, image_gray_1, pinhole_camera, orb_extractor);
   
   cv::Mat image_2 = cv::imread(file_name + "//1403637217738319104.png");
   ASLAM_ASSERT_TRUE( image_2.data, "Could not open or find image.");
   cv::Mat image_gray_2;
   cv::cvtColor(image_2, image_gray_2, cv::COLOR_BGR2GRAY);
   
-  lslam::CameraMeasurement frame_current(2, image_gray_2, pinhole_camera, orb_extractor);
+  auto frame_current = std::make_shared<lslam::CameraMeasurement> (2, image_gray_2, pinhole_camera, orb_extractor);
   
   lslam::Frontend frontend;
   frontend.AddCameraMeasurement(frame_prev);

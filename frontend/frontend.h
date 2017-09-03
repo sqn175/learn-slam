@@ -8,6 +8,7 @@
 
 #include <opencv2/features2d.hpp>
 #include <opencv2/calib3d.hpp>
+#include <glog/logging.h>
 
 #include "camera_measurement.h"
 #include "map.h"
