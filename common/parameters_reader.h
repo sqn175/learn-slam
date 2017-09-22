@@ -8,16 +8,16 @@
 
 #include <string>
 
-#include "Parameters.h"
+#include "parameters.h"
 
 namespace lslam {
 
-class ParamtersReader {
+class ParametersReader {
 public:
-  ParamtersReader() {}
-  ParamtersReader(const std::string &file_name);
+  ParametersReader() {}
+  ParametersReader(const std::string &file_name);
 
-  ~ParamtersReader() {}
+  ~ParametersReader() {}
   
   void Read(const std::string &file_name);
   

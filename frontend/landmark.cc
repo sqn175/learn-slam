@@ -13,7 +13,7 @@ Landmark::Landmark() {
 }
 
 Landmark::Landmark(Eigen::Vector4d point_world) 
-  : point_world_(point_world) { }
+  : id_(0), point_world_(point_world) { }
 
 void Landmark::AddObservation(std::shared_ptr<KeyFrame> keyframe, int keypoint_index) {
   // If this keyframe already exists, we insert nothing, else insert
@@ -63,6 +63,12 @@ void Landmark::ComputeDistinctiveDescriptors() {
   }
   
   descriptors_ = all_descriptors[best_idx].clone();
+}
+
+cv::Mat Landmark::point_world() const {
+  cv::Mat point_world(4,1,CV_64FC1);
+  cv::eigen2cv(point_world_, point_world);
+  return point_world;
 }
 
 } // namespace lslam

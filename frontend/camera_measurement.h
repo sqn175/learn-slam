@@ -22,33 +22,30 @@ public:
   // No default constructor
   CameraMeasurement() {}
   
-  CameraMeasurement(unsigned long id, const cv::Mat& image,
-        std::shared_ptr<const PinholeCamera>& camera_model,
-        std::shared_ptr<ORB_SLAM2::ORBextractor>& orb_extractor);
+  CameraMeasurement(unsigned long timestamp, unsigned long id, const cv::Mat& image);
   
   CameraMeasurement(const CameraMeasurement&);
   
   ~CameraMeasurement() {
   }
   
+  void ExtractOrb(std::shared_ptr<ORB_SLAM2::ORBextractor>);
+  
   // Accessors
   std::vector<cv::KeyPoint> keypoints() const;
   cv::Mat descriptors() const;
-  std::shared_ptr<const PinholeCamera> camera_model() const;
-  
-  // Detect ORB keypoints and extract descriptors
-  void ExtractORB();
   
   void SetPose(cv::Mat T_cw);
   
+  cv::Mat Tcw() const;
+  cv::Mat Twc() const;
+  
 private:
 
-  
+  unsigned long timestamp_; // timestamp of this frame
   unsigned long id_; // id of this frame
   cv::Mat image_; // the image as OpenCV's matrix
-  std::shared_ptr<const PinholeCamera> camera_model_;
-  std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor_; // feature detector and descriptor using ORBSLAM modules
-  
+
   std::vector<cv::KeyPoint> keypoints_; // the keypoints as OpenCV's struct
   cv::Mat descriptors_; // the descriptors as OpenCV's matrix 
   
@@ -57,6 +54,8 @@ private:
   cv::Mat R_cw_; // rotation matrix
   cv::Mat t_cw_; // translation vector
   cv::Mat o_w_;  // camera original in world coordinate
+  // Camera inverse pose, wc -> camera coordinate to world coordinate
+  cv::Mat T_wc_; // inverse transformation matrix
 };
 
 } // namespace lslam

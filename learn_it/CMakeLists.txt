@@ -16,3 +16,12 @@ target_link_libraries(learn_frontend
   frontend
   common
   )
+
+add_executable(learn_pangolin learn_pangolin.cc)
+target_link_libraries(learn_pangolin
+  ${OpenCV_LIBS}
+  ${GLOG_LIBRARY}
+  ORB_SLAM2
+  frontend
+  common
+  )

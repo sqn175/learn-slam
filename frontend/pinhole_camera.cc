@@ -8,6 +8,10 @@
 namespace lslam{
 
 PinholeCamera::PinholeCamera(PinholeCameraParameters params) {
+  init(params);
+}
+
+void PinholeCamera::init(PinholeCameraParameters params) {
   img_width_ = params.image_dimension[0];
   img_height_ = params.image_dimension[1];
   

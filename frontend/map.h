@@ -24,6 +24,11 @@ public:
   
   size_t SizeOfKeyframe() const;
   
+  std::vector<std::shared_ptr<KeyFrame>> keyframes() const;
+  std::vector<std::shared_ptr<Landmark>> landmarkpoints() const;
+  
+
+  
 private:
   std::set<std::shared_ptr<KeyFrame>> keyframes_; // all keyframes in the map
   std::set<std::shared_ptr<Landmark>> landmarkpoints_; // all landmark points in the map

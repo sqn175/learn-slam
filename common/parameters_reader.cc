@@ -12,12 +12,12 @@
 
 namespace lslam {
 
-ParamtersReader::ParamtersReader(const std::string &file_name) {
+ParametersReader::ParametersReader(const std::string &file_name) {
   Read(file_name);
 }
 
 // Read and parse a yaml/xml config file
-void ParamtersReader::Read(const std::string &file_name) {
+void ParametersReader::Read(const std::string &file_name) {
   // Opencv file storages
   cv::FileStorage config_file(file_name, cv::FileStorage::READ);
   
@@ -43,9 +43,12 @@ void ParamtersReader::Read(const std::string &file_name) {
   cv::FileNode principal_point_node = camera_params["principal_point"];
   pinholecamera_params_.principal_point << principal_point_node[0], principal_point_node[1];
   pinholecamera_params_.frame_rate = (int)(camera_params["camera_rate"]);
+  
+  // Close the file
+  config_file.release();
 }
 
-PinholeCameraParameters ParamtersReader::pinholecamera_params() const {
+PinholeCameraParameters ParametersReader::pinholecamera_params() const {
   return pinholecamera_params_;
 }
 

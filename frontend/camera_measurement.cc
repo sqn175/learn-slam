@@ -9,24 +9,22 @@
 
 namespace lslam {
 
-CameraMeasurement::CameraMeasurement(unsigned long id, const cv::Mat& image,
-      std::shared_ptr<const PinholeCamera>& camera_model,
-      std::shared_ptr<ORB_SLAM2::ORBextractor>& orb_extractor)
-  : id_(id) 
-  , image_(image)
-  , camera_model_(camera_model)
-  , orb_extractor_(orb_extractor) {
-  // Extract ORB 
-  ExtractORB();
+CameraMeasurement::CameraMeasurement(unsigned long timestamp, unsigned long id, const cv::Mat& image)
+  : timestamp_(timestamp)
+  , id_(id) 
+  , image_(image){
+
 }
 
 CameraMeasurement::CameraMeasurement(const CameraMeasurement& cm)
   : id_(cm.id_)
   , image_(cm.image_)
-  , camera_model_(cm.camera_model_)
-  , orb_extractor_(cm.orb_extractor_)
   , keypoints_(cm.keypoints_)
   , descriptors_(cm.descriptors_) {
+}
+
+void CameraMeasurement::ExtractOrb(std::shared_ptr<ORB_SLAM2::ORBextractor> extractor) {
+  (*extractor)(image_, cv::Mat(), keypoints_, descriptors_);
 }
 
 std::vector<cv::KeyPoint> CameraMeasurement::keypoints() const {
@@ -37,20 +35,24 @@ cv::Mat CameraMeasurement::descriptors() const {
   return descriptors_;
 }
 
-std::shared_ptr<const PinholeCamera> CameraMeasurement::camera_model() const {
-  return camera_model_;
-}
-
-void CameraMeasurement::ExtractORB() {
-  ASLAM_ASSERT_TRUE(orb_extractor_, "");
-  (*orb_extractor_)( image_, cv::Mat(), keypoints_, descriptors_);
-}
-
 void CameraMeasurement::SetPose(cv::Mat T_cw) {
   T_cw_ = T_cw.clone();
   R_cw_ = T_cw.rowRange(0,3).colRange(0,3);
   t_cw_ = T_cw.rowRange(0,3).col(3);
   o_w_ = -R_cw_.t() * t_cw_;
+  
+  T_wc_ = cv::Mat::eye(4,4,T_cw_.type());
+  cv::Mat R_wc_ = R_cw_.t();
+  R_wc_.copyTo(T_wc_.rowRange(0,3).colRange(0,3));
+  o_w_.copyTo(T_wc_.rowRange(0,3).col(3));
+}
+
+cv::Mat CameraMeasurement::Tcw() const {
+  return T_cw_.clone();
+}
+
+cv::Mat CameraMeasurement::Twc() const {
+  return T_wc_.clone();
 }
 
 } // namespace lslam

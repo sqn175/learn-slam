@@ -9,7 +9,7 @@ camera:
     camera_rate: 20 # just to manage the expectations of when there should be frames arriving
 
 #--------------------------------------------------------------------------------------------
-# Viewer Parameters from ORB-SLAM2
+# Viewer Parameters
 #---------------------------------------------------------------------------------------------
 Viewer.KeyFrameSize: 0.05
 Viewer.KeyFrameLineWidth: 1

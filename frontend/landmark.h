@@ -11,6 +11,7 @@
 
 #include <Eigen/Core>
 #include <opencv2/core.hpp>
+#include <opencv2/core/eigen.hpp>
 
 #include "keyframe.h"
 
@@ -31,7 +32,7 @@ public:
   // Compute the best descriptor associated to this landmark
   void ComputeDistinctiveDescriptors();
   
-
+  cv::Mat point_world() const;
   
 private:
   unsigned int id_; // ID of the landmark point

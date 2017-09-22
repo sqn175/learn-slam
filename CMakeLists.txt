@@ -16,9 +16,14 @@ if(NOT OpenCV_FOUND)
    endif()
 endif()
 message(STATUS "opencv:" ${OpenCV_VERSION})
+message(STATUS "opencv include path:"  ${OpenCV_INCLUDE_DIRS})
 
 # Require Eigen3
 find_package(Eigen3 3.1.0 REQUIRED)
+
+find_package(Pangolin REQUIRED)
+include_directories(${Pangolin_INCLUDE_DIRS})
+message(STATUS "pangolin include path:"  ${Pangolin_INCLUDE_DIRS})
 
 # Require Glog
 find_package(Glog REQUIRED)

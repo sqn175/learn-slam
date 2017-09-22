@@ -9,17 +9,21 @@
 #include <eigen3/Eigen/Core>
 #include <opencv2/core.hpp>
 
-#include "Parameters.h"
+#include "parameters.h"
 
 namespace lslam {
 
 class PinholeCamera{
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  PinholeCamera() { }
   PinholeCamera(PinholeCameraParameters params);
   
   ~PinholeCamera() { }
   
+  // construct pinhole_camera
+  void init(PinholeCameraParameters params);
+
   // Get calibration matrix/intrinsici matrix
   cv::Mat K() const; 
   

@@ -12,12 +12,13 @@
 
 namespace lslam {
 
-class KeyFrame : public CameraMeasurement {
+class KeyFrame{
 public:
   KeyFrame(std::shared_ptr<CameraMeasurement> camera_measurement);
   ~KeyFrame() { }
   
   std::shared_ptr<CameraMeasurement> camera_measurement() const;
+  
 private:
   std::shared_ptr<CameraMeasurement> camera_measurement_; // Set camera_measurement_ as keyframe
 };
