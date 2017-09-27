@@ -2,7 +2,7 @@
  * @Author: Shi Qin 
  * @Date: 2017-09-19 10:19:03 
  * @Last Modified by: Shi Qin
- * @Last Modified time: 2017-09-20 16:34:56
+ * @Last Modified time: 2017-09-22 20:28:57
  */
 
 #ifndef SLAM_SLAM_H_
@@ -12,15 +12,17 @@
 #include <string>
 #include <memory>
 #include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
 
 #include "glog/logging.h"
 
 #include "parameters_reader.h"
 #include "pinhole_camera.h"
 #include "threadsafe_queue.h"
-#include "camera_measurement.h"
+#include "frame.h"
 #include "keyframe.h"
 #include "frontend.h"
+#include "visualizer.h"
 
 namespace lslam {
 
@@ -54,11 +56,14 @@ private:
   // Parameters reader
   ParametersReader params_;
 
+  //// Thread safe members
+  // Map shared by all threads
+  std::shared_ptr<Map> map_;
   // Queues shared by multi-threads
   // - Camera Measurement input queues
-  ThreadSafeQueue<std::shared_ptr<CameraMeasurement>> camera_meas_received_;
+  ThreadSafeQueue<std::shared_ptr<Frame>> camera_meas_received_;
   // - Tracked result queues, ready to be displayed
-  ThreadSafeQueue<std::shared_ptr<CameraMeasurement>> camera_meas_visualized_;
+  ThreadSafeQueue<std::shared_ptr<Frame>> camera_meas_visualized_;
   // - Keyframes to be optimized
   ThreadSafeQueue<std::shared_ptr<KeyFrame>> keyframes_;
 
@@ -71,6 +76,8 @@ private:
   unsigned long last_added_camerameas_id_; // id
 
   Frontend frontend_; // The frontend
+  Visualizer visualizer_; // The visualizer
+  
 
 };
     

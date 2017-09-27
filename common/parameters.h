@@ -8,17 +8,23 @@
 
 #include <string>
 
-#include <Eigen/Core>
-
 namespace lslam {
 
 struct PinholeCameraParameters{
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  Eigen::Vector2d image_dimension; // image dimension in pixels, width * height
-  Eigen::Vector2d focal_length;     // focal length
-  Eigen::Vector2d principal_point;  // principal point, optical centers expressed in pixels coordinates
-  Eigen::VectorXd distortion_coef;  // distortion coefficients
+  int img_width; // image width in pixels
+  int img_height; // image height in pixels
+  
+  double fu; // camera focal lengths
+  double fv; 
+  double cu; // optical centers expressed in pixels coordinates
+  double cv;
   std::string distortion_type;      // distortion type
+  
+  double k1; // radial parameter 1
+  double k2; // radial parameter 2
+  double p1; // tangential parameter 1
+  double p2; // tangential parameter 2
+
   int frame_rate;          // frame rate
 };
 } // namespace LSLAM

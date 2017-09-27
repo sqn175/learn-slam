@@ -31,17 +31,25 @@ void ParametersReader::Read(const std::string &file_name) {
   
   // TODO:: assert node
   cv::FileNode image_dimension_node = camera_params["image_dimension"];
-  pinholecamera_params_.image_dimension << image_dimension_node[0], image_dimension_node[1];
+  pinholecamera_params_.img_width = (int)image_dimension_node[0];
+  pinholecamera_params_.img_height = (int)image_dimension_node[1];
+
   cv::FileNode distortion_coefficients_node = camera_params["distortion_coefficients"];
-  pinholecamera_params_.distortion_coef.resize(distortion_coefficients_node.size());
-  for (size_t i = 0; i < distortion_coefficients_node.size(); ++i) {
-    pinholecamera_params_.distortion_coef[i] = distortion_coefficients_node[i];
-  }
+  pinholecamera_params_.k1 = (double)distortion_coefficients_node[0];
+  pinholecamera_params_.k2 = (double)distortion_coefficients_node[1];
+  pinholecamera_params_.p1 = (double)distortion_coefficients_node[2];
+  pinholecamera_params_.p2 = (double)distortion_coefficients_node[3];
+
   pinholecamera_params_.distortion_type = (std::string)(camera_params["distortion_type"]);
+  
   cv::FileNode focal_length_node = camera_params["focal_length"];
-  pinholecamera_params_.focal_length << focal_length_node[0], focal_length_node[1];
+  pinholecamera_params_.fu = (double)focal_length_node[0];
+  pinholecamera_params_.fv = (double)focal_length_node[1];
+
   cv::FileNode principal_point_node = camera_params["principal_point"];
-  pinholecamera_params_.principal_point << principal_point_node[0], principal_point_node[1];
+  pinholecamera_params_.cu = (double) principal_point_node[0];
+  pinholecamera_params_.cv = (double) principal_point_node[1];
+
   pinholecamera_params_.frame_rate = (int)(camera_params["camera_rate"]);
   
   // Close the file

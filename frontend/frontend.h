@@ -10,10 +10,11 @@
 #include <opencv2/calib3d.hpp>
 #include <glog/logging.h>
 
-#include "camera_measurement.h"
+#include "frame.h"
 #include "map.h"
 #include "pinhole_camera.h"
 #include "parameters_reader.h"
+#include "guided_matcher.h"
 
 namespace lslam {
 
@@ -34,17 +35,23 @@ public:
   
   void init(const ParametersReader&);
   
-  void Process(std::shared_ptr<CameraMeasurement> camera_measurement_current);
-  
-  std::shared_ptr<Map> map() const;
+  void Process(std::shared_ptr<Frame> camera_measurement_current);
   
   // Accessors
   PinholeCamera camera_model() const;
   // Setters
+  void set_map(std::shared_ptr<Map> map);
   void set_camera_model(std::shared_ptr<PinholeCamera> camera_model);
+
+private:
+  // Initial data association to create initial 3D map when we have a initial camera pose
+  bool DataAssociationBootstrap();
+  // Process incoming frames as quickly as possible
+  void DataAssociation();
+  
 private:
   
-  Map map_; 
+  std::shared_ptr<Map> map_; 
 
   // Camera model
   std::shared_ptr<PinholeCamera> camera_model_;
@@ -54,14 +61,12 @@ private:
   
   FrontEndState state_;  // frontend state
   
-  std::shared_ptr<CameraMeasurement> camera_measurement_current_; // current camera_measurement
+  std::shared_ptr<Frame> cur_frame_; // current camera_measurement
   
-  std::shared_ptr<CameraMeasurement> camera_measurement_prev_; // previous camera_measurement
+  std::shared_ptr<Frame> last_frame_; // previous camera_measurement
   
-  bool DataAssociationInitialize();
-  // Initial data association to create initial map when we have a initial camera pose
-  void DataAssociation();
-  
+  // Guided matcher
+  GuidedMatcher guided_matcher_;
 };
 
 } // namespace lslam

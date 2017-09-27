@@ -3,17 +3,14 @@
  * Date: 2017-08-29
  */
 
-#include <limits>
-
 #include "landmark.h"
+
+#include <limits>
 
 namespace lslam {
 
 Landmark::Landmark() {
 }
-
-Landmark::Landmark(Eigen::Vector4d point_world) 
-  : id_(0), point_world_(point_world) { }
 
 void Landmark::AddObservation(std::shared_ptr<KeyFrame> keyframe, int keypoint_index) {
   // If this keyframe already exists, we insert nothing, else insert
@@ -33,7 +30,7 @@ void Landmark::ComputeDistinctiveDescriptors() {
   std::vector<cv::Mat> all_descriptors;
   all_descriptors.reserve(size);
   for (auto i = observations_.begin(); i != observations_.end(); ++i) {
-    std::shared_ptr<CameraMeasurement> cm_i = (*i).first->camera_measurement();
+    std::shared_ptr<Frame> cm_i = (*i).first->camera_measurement();
     all_descriptors.push_back(cm_i->descriptors().row((*i).second));
   }
   
@@ -65,10 +62,45 @@ void Landmark::ComputeDistinctiveDescriptors() {
   descriptors_ = all_descriptors[best_idx].clone();
 }
 
-cv::Mat Landmark::point_world() const {
-  cv::Mat point_world(4,1,CV_64FC1);
-  cv::eigen2cv(point_world_, point_world);
-  return point_world;
+bool Landmark::IsProjectable(std::shared_ptr<Frame> frame, std::shared_ptr<PinholeCamera> camera_model, cv::Mat& p_uv) {
+  CHECK(frame) << "frame is Null.";
+  CHECK(camera_model) << "camera_model is Null.";
+  if (!frame->Tcw().data) {
+    LOG(ERROR) << "The pose of frame is NOT set.";
+    return false;
+  }
+  // 3D Landmark point in camera coordinates
+  cv::Mat p_c = frame->Project(pt_world_);
+  
+  // Check positive depth
+  const double pz_c = p_c.at<double>(2);
+  if (pz_c <= 0.0) 
+    return false;
+
+  // Project to image coordinate and check it is inside
+  p_uv = camera_model->Project(p_c);
+  double u = p_uv.at<double>(0);
+  double v = p_uv.at<double>(1);
+  cv::Mat img_bounds = camera_model->image_bounds();
+  double min_u = img_bounds.at<double>(0);
+  double min_v = img_bounds.at<double>(1);
+  double max_u = img_bounds.at<double>(2);
+  double max_v = img_bounds.at<double>(3);
+  if (u < min_u || u > max_u || v < min_v || v > max_v)
+    return false;
+
+  return true;
+  
+  
+}
+
+void Landmark::set_pt_world(const cv::Mat& pt_world) {
+  CHECK(pt_world.cols == 1 && pt_world.rows == 3) << "invalid pt_world dimension.";
+  pt_world.copyTo(pt_world_);
+}
+
+cv::Mat Landmark::pt_world() const {
+  return pt_world_.clone();
 }
 
 } // namespace lslam

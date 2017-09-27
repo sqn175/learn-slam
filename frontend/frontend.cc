@@ -17,13 +17,13 @@ namespace lslam {
 Frontend::Frontend() : state_(FrontEndState::kNotReady) {
 }
 
-bool Frontend::DataAssociationInitialize() {
+bool Frontend::DataAssociationBootstrap() {
   
   // Find correspondences
   cv::BFMatcher matcher(cv::NORM_HAMMING);
   std::vector<std::vector<cv::DMatch>> matches;
   // KNN matcher, k = 2, find the best match and the second best match
-  matcher.knnMatch(camera_measurement_prev_->descriptors(), camera_measurement_current_->descriptors(), matches, 2);
+  matcher.knnMatch(last_frame_->descriptors(), cur_frame_->descriptors(), matches, 2);
   
   std::vector<cv::DMatch> good_matches;
   
@@ -47,8 +47,8 @@ bool Frontend::DataAssociationInitialize() {
   // convert keypoint to vecctor<Point2f>
   std::vector<cv::Point2f> src_points, dst_points;
   for ( auto it = good_matches.begin(); it != good_matches.end(); ++it) {
-    src_points.push_back( camera_measurement_prev_->keypoints()[(*it).queryIdx].pt );
-    dst_points.push_back( camera_measurement_current_->keypoints()[(*it).trainIdx].pt );
+    src_points.push_back( last_frame_->keypoints()[(*it).queryIdx].pt );
+    dst_points.push_back( cur_frame_->keypoints()[(*it).trainIdx].pt );
   }
   
   // Find fundamental 
@@ -78,26 +78,26 @@ bool Frontend::DataAssociationInitialize() {
   
   // Initialize the previous camera ralative pose
   cv::Mat T_cw_prev = cv::Mat::eye(4,4,CV_64F);
-  camera_measurement_prev_->SetPose(T_cw_prev);
+  last_frame_->SetPose(T_cw_prev);
   
   // Initialize the current camera relative pose
   cv::Mat T_cw_cur = cv::Mat::eye(4,4,CV_64F);
   R.copyTo(T_cw_cur.rowRange(0,3).colRange(0,3));
   t.copyTo(T_cw_cur.rowRange(0,3).col(3));
-  camera_measurement_current_->SetPose(T_cw_cur);
+  cur_frame_->SetPose(T_cw_cur);
   
   std::cout<<"T_cw_prev"<<T_cw_prev<<std::endl;
   std::cout<<"T_cw_cur"<<T_cw_cur<<std::endl;
   
   // Initial data association
   // We set the initial frame and current frame as keyframe
-  auto keyframe_ini = std::make_shared<KeyFrame>(camera_measurement_prev_);
-  auto keyframe_cur = std::make_shared<KeyFrame>(camera_measurement_current_);
+  auto keyframe_ini = std::make_shared<KeyFrame>(last_frame_);
+  auto keyframe_cur = std::make_shared<KeyFrame>(cur_frame_);
   
   // Insert the two keyframes to map
   //map_.AddKeyFrame(keyframe_ini);
-  map_.AddKeyFrame(keyframe_ini);
-  map_.AddKeyFrame(keyframe_cur);
+  map_->AddKeyFrame(keyframe_ini);
+  map_->AddKeyFrame(keyframe_cur);
   
   // Create landmarks and asscioate to keyframes
   // Triangulate keypoints to get landmarks
@@ -109,12 +109,10 @@ bool Frontend::DataAssociationInitialize() {
     Eigen::Vector4d eigen_world_coor;
     cv::Mat x = world_coordinates.col((int)i);
     x /= x.at<float>(3,0);
-    cv::cv2eigen(x, eigen_world_coor);
-    if (eigen_world_coor[2] <= 0)
-      continue;
 
     // Create landmark
-    std::shared_ptr<lslam::Landmark> landmark = std::make_shared<lslam::Landmark> (eigen_world_coor);
+    std::shared_ptr<lslam::Landmark> landmark = std::make_shared<lslam::Landmark>();
+    landmark->set_pt_world(x);
     
     // Add 2 observation
     // The keyframe_ini is observating this landmark, the associated keypoint is queryIdx
@@ -127,57 +125,56 @@ bool Frontend::DataAssociationInitialize() {
     // Update the best descriptor of this landmark
     landmark->ComputeDistinctiveDescriptors();
     // Add landmark to map
-    map_.AddLandmarkPoint(landmark);
+    map_->AddLandmarkPoint(landmark);
     
   }
 
-  
   return true;
-  
-  
 }
 
-void Frontend::Process(std::shared_ptr<CameraMeasurement> camera_measurement_current) {
+void Frontend::DataAssociation() {
+  // Perform active ORB searching and matching, we get 3d-2d matches
+  int n_matches = guided_matcher_.ProjectionGuided3D2DMatcher(cur_frame_, last_frame_);
+}
 
-  camera_measurement_current_ = camera_measurement_current;
+void Frontend::Process(std::shared_ptr<Frame> cur_frame) {
+
+  cur_frame_ = cur_frame;
   
   // Extract ORB features
-  camera_measurement_current_->ExtractOrb(orb_extractor_);
+  cur_frame_->ExtractOrb(orb_extractor_);
+  cur_frame_->PreProcessKeyPoints(camera_model_);
   
-  // if initialized 
+
   if (state_ == FrontEndState::kInitialized) {
-    // TRACK
-    
+    // State: initialized  
+    // We track the incoming frames
+    DataAssociation();
+
   } else if (state_ == FrontEndState::kNotInitialized) {
-    bool init_success = DataAssociationInitialize();
+    // State: not initialized
+    // We try to initialize the camera pose  
+    bool init_success = DataAssociationBootstrap();
     if (init_success) {
       state_ = FrontEndState::kInitialized;
       LOG(INFO) << "Initialized!";
     }
-    camera_measurement_prev_ = camera_measurement_current_;
-    
   } else if (state_ == FrontEndState::kNotReady) {
+    // Steate: not ready
+    // System just start, frames received is less than 2
     // For monocular case, we need two frames for initialization
-      camera_measurement_prev_ = camera_measurement_current_;
+    if (last_frame_)
       state_ = FrontEndState::kNotInitialized;
-      return;
   }
-  
-}
 
-
-void Frontend::DataAssociation() {
-  // If this is the first frame
-  if ( map_.SizeOfKeyframe() == 0)
-  {
-
-  }
+  last_frame_ = cur_frame_;
 }
 
 void Frontend::init(const ParametersReader& params) {
   // Initialize camera model
   // TODO: Check pinholecamera_params != null
-  camera_model_->init(params.pinholecamera_params());
+  // Smart pointer initialize
+  camera_model_ = std::make_shared<PinholeCamera>(params.pinholecamera_params());
 
   // Initialize ORB extractor
   // TODO: using params to initialize
@@ -188,7 +185,13 @@ void Frontend::init(const ParametersReader& params) {
   int min = 7;
   orb_extractor_ = std::make_shared<ORB_SLAM2::ORBextractor>(features, scale, level, ini, min);
   
-  
+  // Initialize guided matcher
+  guided_matcher_.set_camera_model(camera_model_);
+  guided_matcher_.set_orb_extractor(orb_extractor_);
+}
+
+void Frontend::set_map(std::shared_ptr<Map> map) {
+  map_ = map;
 }
 
 void Frontend::set_camera_model(std::shared_ptr<PinholeCamera> camera_model) {
@@ -196,8 +199,5 @@ void Frontend::set_camera_model(std::shared_ptr<PinholeCamera> camera_model) {
 }
 
 
-std::shared_ptr<Map> Frontend::map() const {
-  return std::make_shared<Map>(map_);
-}
 
 } // namespace lslam

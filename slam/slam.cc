@@ -2,17 +2,15 @@
  * @Author: Shi Qin 
  * @Date: 2017-09-19 10:16:10 
  * @Last Modified by: Shi Qin
- * @Last Modified time: 2017-09-20 16:35:05
+ * @Last Modified time: 2017-09-25 09:38:10
  */
 
 #include "slam.h"
 
-#include "parameters_reader.h"
-
 namespace lslam {
 
 Slam::Slam(const std::string config_file) {
-
+  Init(config_file);
 }
 
 bool Slam::Init(const std::string config_file) {
@@ -21,26 +19,33 @@ bool Slam::Init(const std::string config_file) {
 
   // Initialize frontend via params_
   frontend_.init(params_);
+  frontend_.set_map(map_);
 
   last_added_camerameas_time_ = 0;
   last_added_camerameas_id_ = 0;
 
-  
+  // Start threads
+  frame_consumer_thread_ = std::thread(&Slam::FrameConsumerLoop, this);
+  visualization_thread_ = std::thread(&Slam::VisualizationLoop, this);
+
 }
 bool Slam::AddMonoImage(const cv::Mat &image, const unsigned long &timestamp) {
+  // Check image is valid
+  CHECK(image.data) << "Invalid image input!";
   if (last_added_camerameas_time_ > timestamp) {
     LOG(ERROR) << "Received image timestamp from past.";
     return false;
   }
   last_added_camerameas_time_ = timestamp;
   last_added_camerameas_id_ += 1;
-  auto camera_meas = std::make_shared<CameraMeasurement>(timestamp, last_added_camerameas_id_, image);
   
+  // Wrap image to Frame
+  auto camera_meas = std::make_shared<Frame>(timestamp, last_added_camerameas_id_, image);
   camera_meas_received_.PushBlockingIfFull(camera_meas, 1);
 } 
 
 void Slam::FrameConsumerLoop() {
-  std::shared_ptr<CameraMeasurement> camera_meas;
+  std::shared_ptr<Frame> camera_meas;
   while (true) {
     // Get data from queue, and check for termination check
     if (camera_meas_received_.PopBlocking(&camera_meas) == false)
@@ -55,7 +60,15 @@ void Slam::FrameConsumerLoop() {
 }
 
 void Slam::VisualizationLoop() {
-  
+  std::shared_ptr<Frame> camera_meas;
+  std::string window_name = "frame";
+  cv::namedWindow(window_name);
+  while (true) {
+    if (camera_meas_visualized_.PopBlocking(&camera_meas) == false)
+      return;
+
+    visualizer_.DrawFrameAndMap(window_name, camera_meas);
+  }
 }
 
 } // namespace lslam

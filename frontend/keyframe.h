@@ -8,19 +8,21 @@
 
 #include <memory>
 
-#include "camera_measurement.h"
+#include "frame.h"
 
 namespace lslam {
 
+class Frame;
+
 class KeyFrame{
 public:
-  KeyFrame(std::shared_ptr<CameraMeasurement> camera_measurement);
+  KeyFrame(std::shared_ptr<Frame> camera_measurement);
   ~KeyFrame() { }
   
-  std::shared_ptr<CameraMeasurement> camera_measurement() const;
+  std::shared_ptr<Frame> camera_measurement() const;
   
 private:
-  std::shared_ptr<CameraMeasurement> camera_measurement_; // Set camera_measurement_ as keyframe
+  std::shared_ptr<Frame> camera_measurement_; // Set camera_measurement_ as keyframe
 };
 
 } // namespace lslam

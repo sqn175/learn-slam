@@ -52,7 +52,7 @@ void MapDrawer::DrawMapPoints()
 
     for(size_t i=0, iend=vpMPs.size(); i<iend;i++)
     {
-        cv::Mat pos = vpMPs[i]->point_world();
+        cv::Mat pos = vpMPs[i]->pt_world();
         glVertex3d(pos.at<double>(0,0),pos.at<double>(1,0),pos.at<double>(2,0));
     }
     glEnd();

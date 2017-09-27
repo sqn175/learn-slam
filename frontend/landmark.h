@@ -9,19 +9,25 @@
 #include <memory>
 #include <map>
 
+#include <glog/logging.h>
 #include <Eigen/Core>
 #include <opencv2/core.hpp>
 #include <opencv2/core/eigen.hpp>
 
 #include "keyframe.h"
+#include "frame.h"
+#include "pinhole_camera.h"
 
 namespace lslam {
 
+class Frame;
+class KeyFrame;
+
+// TODO: thread safe???
 class Landmark {
 public:
   // Constructor
   Landmark();
-  Landmark(Eigen::Vector4d point_world);
   ~Landmark() { }
   
   void AddObservation(std::shared_ptr<KeyFrame> keyframe, int keypoint_index);
@@ -31,12 +37,16 @@ public:
   
   // Compute the best descriptor associated to this landmark
   void ComputeDistinctiveDescriptors();
+
+  // Check if this landmark is in the frustum of the camera
+  bool IsProjectable(std::shared_ptr<Frame> frame, std::shared_ptr<PinholeCamera> camera_model, cv::Mat& uv);
   
-  cv::Mat point_world() const;
+  void set_pt_world(const cv::Mat&);
+  cv::Mat pt_world() const;
   
 private:
   unsigned int id_; // ID of the landmark point
-  Eigen::Vector4d point_world_; // Homogenuous coordinate of the landmark point in the world map
+  cv::Mat pt_world_; // 3d coordinate of the landmark point in the world map
   cv::Mat descriptors_; // Best descriptors of this point
   // Keyframes observing the point and the associated keypoint index in keyframe
   std::map<std::shared_ptr<KeyFrame>, int> observations_; 
