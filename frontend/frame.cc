@@ -3,6 +3,8 @@
  * Date: 2017-08-21
  */
 
+#include <iostream>
+
 #include "frame.h"
 
 #include "my_assert.h"
@@ -22,11 +24,9 @@ Frame::Frame(unsigned long timestamp, unsigned long id, const cv::Mat& image)
   range_searcher_ = std::make_shared<RangeSearcher>();
 }
 
-void Frame::ExtractOrb(std::shared_ptr<ORB_SLAM2::ORBextractor> extractor) {
+void Frame::PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor> extractor,std::shared_ptr<PinholeCamera> camera_model) {
+  // Extract ORB
   (*extractor)(image_, cv::Mat(), keypoints_, descriptors_);
-}
-
-void Frame::PreProcessKeyPoints(std::shared_ptr<PinholeCamera> camera_model) {
   // Undistort
   if (camera_model->DistortionType().compare("radialtangential") == 0 ) {
     cv::Mat mat(keypoints_.size(), 2, CV_32F);
@@ -36,7 +36,8 @@ void Frame::PreProcessKeyPoints(std::shared_ptr<PinholeCamera> camera_model) {
     }
     // Undistort keypoints using OpenCV function
     mat = mat.reshape(2);
-    cv::undistortPoints(mat, mat, camera_model->K(), camera_model->DistCoeffs(), cv::Mat(), camera_model->K());
+
+    cv::undistortPoints(mat, mat, camera_model->K(), camera_model->DistCoeffs(), cv::noArray(), camera_model->K());
     mat = mat.reshape(1);
 
     // Fill undistorted keypoint vector
@@ -54,6 +55,9 @@ void Frame::PreProcessKeyPoints(std::shared_ptr<PinholeCamera> camera_model) {
 
   // Build gridding range searcher
   range_searcher_->BuildGrids(undistorted_kps_, camera_model->image_bounds(), 2);
+
+  // Allocate landmarks
+  landmarks_ = std::vector<std::shared_ptr<Landmark>>(keypoints_.size(), static_cast<std::shared_ptr<Landmark>>(NULL));
 }
 
 cv::Mat Frame::image() const {
@@ -88,17 +92,32 @@ void Frame::SetPose(cv::Mat T_cw) {
   o_w_.copyTo(T_wc_.rowRange(0,3).col(3));
 }
 
-cv::Mat Frame::Tcw() const {
-  return T_cw_.clone();
+void Frame::set_T_cl(cv::Mat T_cl) {
+  T_cl_ = T_cl;
 }
 
-cv::Mat Frame::Twc() const {
-  return T_wc_.clone();
+void Frame::AddLandmark(std::shared_ptr<Landmark> landmark, size_t idx) {
+  landmarks_[idx] = landmark;
+}
+
+// TODO: consider if we need deep clone?
+cv::Mat Frame::T_cw() const {
+  return T_cw_;
+}
+
+cv::Mat Frame::T_wc() const {
+  return T_wc_;
+}
+
+cv::Mat Frame::T_cl() const {
+  return T_cl_;
 }
 
 cv::Mat Frame::Project(const cv::Mat pt3d_w) {
   CHECK(pt3d_w.cols == 1 && pt3d_w.rows == 3) << "Invalid 3d point.";
-  CHECK(!T_cw_.data) << "The pose of frame is NOT set.";
+  std::cout<<"T_cw:\n"<<T_cw_<<std::endl;
+  std::cout<<"R_cw:\n"<<R_cw_<<std::endl;
+  CHECK(T_cw_.data) << "The pose of frame is NOT set.";
   cv::Mat p_c = R_cw_*pt3d_w + t_cw_;
   return p_c;
 }

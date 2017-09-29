@@ -43,12 +43,12 @@ void ParametersReader::Read(const std::string &file_name) {
   pinholecamera_params_.distortion_type = (std::string)(camera_params["distortion_type"]);
   
   cv::FileNode focal_length_node = camera_params["focal_length"];
-  pinholecamera_params_.fu = (double)focal_length_node[0];
-  pinholecamera_params_.fv = (double)focal_length_node[1];
+  pinholecamera_params_.fx = (double)focal_length_node[0];
+  pinholecamera_params_.fy = (double)focal_length_node[1];
 
   cv::FileNode principal_point_node = camera_params["principal_point"];
-  pinholecamera_params_.cu = (double) principal_point_node[0];
-  pinholecamera_params_.cv = (double) principal_point_node[1];
+  pinholecamera_params_.cx = (double) principal_point_node[0];
+  pinholecamera_params_.cy = (double) principal_point_node[1];
 
   pinholecamera_params_.frame_rate = (int)(camera_params["camera_rate"]);
   

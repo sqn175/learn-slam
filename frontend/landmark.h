@@ -41,8 +41,11 @@ public:
   // Check if this landmark is in the frustum of the camera
   bool IsProjectable(std::shared_ptr<Frame> frame, std::shared_ptr<PinholeCamera> camera_model, cv::Mat& uv);
   
+  // Mutators
   void set_pt_world(const cv::Mat&);
+  // Accessors
   cv::Mat pt_world() const;
+  cv::Mat descriptors() const;
   
 private:
   unsigned int id_; // ID of the landmark point

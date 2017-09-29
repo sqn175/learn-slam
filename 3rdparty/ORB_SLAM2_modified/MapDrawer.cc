@@ -71,7 +71,7 @@ void MapDrawer::DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph)
         for(size_t i=0; i<vpKFs.size(); i++)
         {
             std::shared_ptr<lslam::KeyFrame> pKF = vpKFs[i];
-            cv::Mat Twc = pKF->camera_measurement()->Twc().t();
+            cv::Mat Twc = pKF->camera_measurement()->T_wc().t();
 
             glPushMatrix();
 

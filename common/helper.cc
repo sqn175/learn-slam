@@ -7,7 +7,8 @@
 
 namespace lslam {
 
-std::string MatType2Str(int type) {
+std::string MatType2Str(cv::Mat mat) {
+  int type = mat.type();
   std::string r;
 
   unsigned char depth = type & CV_MAT_DEPTH_MASK;

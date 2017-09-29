@@ -17,6 +17,9 @@ bool Slam::Init(const std::string config_file) {
   // Read params from config_file
   params_.Read(config_file);
 
+  // Allocate
+  map_ = std::make_shared<Map>();
+
   // Initialize frontend via params_
   frontend_.init(params_);
   frontend_.set_map(map_);

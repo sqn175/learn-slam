@@ -32,11 +32,12 @@ public:
   ~Frame() {
   }
   
-  // Functions called after frame initialization
-  void ExtractOrb(std::shared_ptr<ORB_SLAM2::ORBextractor>);
-  // Undistort keypoints and assign them to grid for fast range searching
-  void PreProcessKeyPoints(std::shared_ptr<PinholeCamera>);
-  // And gridding
+  // Function to be called after construction
+  // 1. Extract ORB feature; 
+  // 2. Undistort keypoints and assign them to grid for fast range searching
+  // 3. Allocating 
+  void PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor>,std::shared_ptr<PinholeCamera>);
+
 
   // Accessors
   cv::Mat image() const;
@@ -45,11 +46,13 @@ public:
   std::vector<std::shared_ptr<Landmark>> landmarks() const;
   std::shared_ptr<RangeSearcher> range_searcher() const;
 
-
   void SetPose(cv::Mat T_cw);
+  void AddLandmark(std::shared_ptr<Landmark> landmark, size_t idx);
+  void set_T_cl(cv::Mat T_cl);
   
-  cv::Mat Tcw() const;
-  cv::Mat Twc() const;
+  cv::Mat T_cw() const;
+  cv::Mat T_wc() const;
+  cv::Mat T_cl() const;
 
   // Project world coordinate 3d point to image coordinate 3d point
   cv::Mat Project(const cv::Mat pt3d_w);
@@ -77,6 +80,8 @@ private:
   cv::Mat o_w_;  // camera original in world coordinate
   // Camera inverse pose, wc -> camera coordinate to world coordinate
   cv::Mat T_wc_; // inverse transformation matrix
+  // Transformation from last frame to current frame
+  cv::Mat T_cl_;
   // === State ===
 
   // Build feature points gridding range searcher

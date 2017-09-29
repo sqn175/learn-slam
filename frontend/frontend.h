@@ -48,7 +48,9 @@ private:
   bool DataAssociationBootstrap();
   // Process incoming frames as quickly as possible
   void DataAssociation();
-  
+
+  // Initial pose estimation from previous frame
+  bool TrackToLastFrame();
 private:
   
   std::shared_ptr<Map> map_; 

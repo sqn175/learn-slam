@@ -15,11 +15,11 @@ void PinholeCamera::init(const PinholeCameraParameters& params) {
   img_width_ = params.img_width;
   img_height_ = params.img_height;
 
-  fu_ = params.fu;
-  fv_ = params.fv;
-  cu_ = params.cu;
-  cv_ = params.cv;
-  K_ = cv::Mat_<double>(3,3)<<fu_, 0, cu_, 0, fv_, cv_, 0, 0, 1;
+  fx_ = params.fx;
+  fy_ = params.fy;
+  cx_ = params.cx;
+  cy_ = params.cy;
+  K_ = (cv::Mat_<double>(3,3)<<fx_, 0, cx_, 0, fy_, cy_, 0, 0, 1);
 
   distortion_type_ = params.distortion_type;
 
@@ -28,7 +28,9 @@ void PinholeCamera::init(const PinholeCameraParameters& params) {
   p1_ = params.p1;
   p2_ = params.p2;
 
-  distortion_coeffs_ = cv::Mat_<double>(4,1)<<k1_, k2_, p1_, p2_;
+  distortion_coeffs_ = (cv::Mat_<double>(4,1)<<k1_, k2_, p1_, p2_);
+
+  SetImageBounds();
 }
 
 cv::Mat PinholeCamera::K() const {
@@ -60,31 +62,35 @@ cv::Mat PinholeCamera::Project(cv::Mat& pt3d) {
   // s|v|=|0 fv cv||y|
   //  |1| |0  0  1||z|
   const double z_inv = 1.0/pz_c;
-  const double u = fu_*pt3d.at<double>(0)*z_inv + cu_;
-  const double v = fv_*pt3d.at<double>(1)*z_inv + cv_;
-  return cv::Mat_<double>(2,1) << u,v;
+  const double u = fx_*pt3d.at<double>(0)*z_inv + cx_;
+  const double v = fy_*pt3d.at<double>(1)*z_inv + cy_;
+  return (cv::Mat_<double>(2,1) << u,v);
 }
 
-void PinholeCamera::GetImageBounds() {
+void PinholeCamera::SetImageBounds() {
   if (distortion_type_.compare("radialtangential") == 0) {
-    double corners[8] = {0.0,0.0, img_height_-1,0.0, 0.0,img_width_-1, img_height_-1,img_width_-1};
-    cv::Mat mat(4,2,CV_64F,corners);
+
+    // topleft, bottomleft, topright, bottomright
+    cv::Mat mat = (cv::Mat_<float>(4,2)<</* image topleft */   0.0, 0.0, 
+                                         /* image topright */  img_width_-1.0, 0.0, 
+                                         /* image bottomleft*/ 0.0, img_height_-1.0,
+                                         /* image bottomright*/img_width_-1.0,img_height_-1.0);
 
     // Undistort corners
     mat = mat.reshape(2);
-    cv::undistortPoints(mat,mat,K_,distortion_coeffs_,cv::Mat(),K_);
+    cv::undistortPoints(mat,mat,K_,distortion_coeffs_,cv::noArray(),K_);
     mat = mat.reshape(1);
 
     // bounds
-    double min_u = std::min(mat.at<float>(0,0),mat.at<float>(2,0));
-    double min_v = std::min(mat.at<float>(0,1),mat.at<float>(1,1));
-    double max_u = std::max(mat.at<float>(1,0),mat.at<float>(3,0));
-    double max_v = std::max(mat.at<float>(2,1),mat.at<float>(3,1));
+    double min_x = std::min(mat.at<float>(0,0),mat.at<float>(2,0)); // min_x <= topleft.x && min_x <= bottomleft.x
+    double min_y = std::min(mat.at<float>(0,1),mat.at<float>(1,1)); // min_y <= topleft.y && min_y <= topright.y
+    double max_x = std::max(mat.at<float>(1,0),mat.at<float>(3,0)); // max_x >= topright.x && max_x >= bottomright.x
+    double max_y = std::max(mat.at<float>(2,1),mat.at<float>(3,1)); // max_y >= bottomleft.y && max_y >= bottomright.y
 
-    image_bounds_ = cv::Mat_<double>(4,1)<<min_u,min_v,max_u,max_v;
+    image_bounds_ = (cv::Mat_<double>(2,2)<<min_x,min_y,max_x,max_y);
   }
   else 
-    image_bounds_ = cv::Mat_<double>(4,1)<<0.0,0.0,img_height_-1,img_width_-1;
+    image_bounds_ = (cv::Mat_<double>(2,2)<<0.0,0.0,img_width_-1,img_height_-1);
 }
 
 } // namespace lslam

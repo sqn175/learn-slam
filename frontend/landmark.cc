@@ -4,7 +4,7 @@
  */
 
 #include "landmark.h"
-
+#include <iostream>
 #include <limits>
 
 namespace lslam {
@@ -65,7 +65,8 @@ void Landmark::ComputeDistinctiveDescriptors() {
 bool Landmark::IsProjectable(std::shared_ptr<Frame> frame, std::shared_ptr<PinholeCamera> camera_model, cv::Mat& p_uv) {
   CHECK(frame) << "frame is Null.";
   CHECK(camera_model) << "camera_model is Null.";
-  if (!frame->Tcw().data) {
+  std::cout<<"Current camera Pose: \n"<<frame->T_cw()<<std::endl;
+  if (!frame->T_cw().data) {
     LOG(ERROR) << "The pose of frame is NOT set.";
     return false;
   }
@@ -101,6 +102,10 @@ void Landmark::set_pt_world(const cv::Mat& pt_world) {
 
 cv::Mat Landmark::pt_world() const {
   return pt_world_.clone();
+}
+
+cv::Mat Landmark::descriptors() const {
+  return descriptors_;
 }
 
 } // namespace lslam

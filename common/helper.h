@@ -13,7 +13,7 @@
 namespace lslam {
 
 // Identify Opencv matrix type
-std::string MatType2Str(int type);
+std::string MatType2Str(cv::Mat mat);
 
 } // namespace LSLAM
 

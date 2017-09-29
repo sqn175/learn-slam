@@ -85,7 +85,8 @@ bool Frontend::DataAssociationBootstrap() {
   R.copyTo(T_cw_cur.rowRange(0,3).colRange(0,3));
   t.copyTo(T_cw_cur.rowRange(0,3).col(3));
   cur_frame_->SetPose(T_cw_cur);
-  
+  cur_frame_->set_T_cl(T_cw_cur*last_frame_->T_wc());
+
   std::cout<<"T_cw_prev"<<T_cw_prev<<std::endl;
   std::cout<<"T_cw_cur"<<T_cw_cur<<std::endl;
   
@@ -103,7 +104,8 @@ bool Frontend::DataAssociationBootstrap() {
   // Triangulate keypoints to get landmarks
   cv::Mat world_coordinates;
   cv::triangulatePoints(K*T_cw_prev.rowRange(0,3), K*T_cw_cur.rowRange(0,3), src_points, dst_points, world_coordinates);
-
+  // Convert OpenCV type CV_32F to CV_64F
+  world_coordinates.convertTo(world_coordinates, CV_64F);
   for (size_t i = 0; i < src_points.size(); ++i ) {
     // TODO:: check landmark valid
     Eigen::Vector4d eigen_world_coor;
@@ -112,7 +114,7 @@ bool Frontend::DataAssociationBootstrap() {
 
     // Create landmark
     std::shared_ptr<lslam::Landmark> landmark = std::make_shared<lslam::Landmark>();
-    landmark->set_pt_world(x);
+    landmark->set_pt_world(x.rowRange(0,3));
     
     // Add 2 observation
     // The keyframe_ini is observating this landmark, the associated keypoint is queryIdx
@@ -127,14 +129,38 @@ bool Frontend::DataAssociationBootstrap() {
     // Add landmark to map
     map_->AddLandmarkPoint(landmark);
     
+    // Associate landmark to frame
+    last_frame_->AddLandmark(landmark, good_matches[i].queryIdx);
+    cur_frame_->AddLandmark(landmark, good_matches[i].trainIdx);
   }
 
   return true;
 }
 
 void Frontend::DataAssociation() {
+  // Track
+  bool tracked = false;
+  tracked = TrackToLastFrame();
+
+}
+
+// TODO: method as a new class
+bool Frontend::TrackToLastFrame() {
+  // No last frame exists
+  if (!last_frame_) return false;
+  // We do not have a predicted velocity
+  if (!(last_frame_->T_cl().data)) return false;
+  // Initialize current frame pose using predicted velocity
+  // We assume camera as a const velocity model
+  cur_frame_->SetPose(last_frame_->T_cl()*last_frame_->T_cw()); 
   // Perform active ORB searching and matching, we get 3d-2d matches
-  int n_matches = guided_matcher_.ProjectionGuided3D2DMatcher(cur_frame_, last_frame_);
+  // TUNE: search range
+  int th = 15; 
+  int n_matches = guided_matcher_.ProjectionGuided3D2DMatcher(cur_frame_, last_frame_, th, true);
+  // TUNE: 20?
+  if (n_matches < 20) return false;
+
+  
 }
 
 void Frontend::Process(std::shared_ptr<Frame> cur_frame) {
@@ -142,9 +168,7 @@ void Frontend::Process(std::shared_ptr<Frame> cur_frame) {
   cur_frame_ = cur_frame;
   
   // Extract ORB features
-  cur_frame_->ExtractOrb(orb_extractor_);
-  cur_frame_->PreProcessKeyPoints(camera_model_);
-  
+  cur_frame_->PreProcess(orb_extractor_, camera_model_);
 
   if (state_ == FrontEndState::kInitialized) {
     // State: initialized  

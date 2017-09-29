@@ -34,10 +34,10 @@ private:
   // 1 / Grid square size
   double grid_size_inv_;
   // Sorted points bounds
-  double min_u_;
-  double min_v_;
-  double max_u_;
-  double max_v_;
+  double min_x_;
+  double min_y_;
+  double max_x_;
+  double max_y_;
 };
 } // namespace LSLAM
 

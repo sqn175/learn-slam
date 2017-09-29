@@ -27,7 +27,17 @@ public:
   // Project Landmarks into the current frame, and search matches
   int ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame, std::vector<std::shared_ptr<Landmark>> landmarks);
 
-  int ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame, std::shared_ptr<Frame> last_frame);
+  int ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame, std::shared_ptr<Frame> last_frame, const double th, const bool check_ori);
+
+public:
+  static const int TH_LOW;
+  static const int TH_HIGH;
+  static const int HISTO_LENGTH;
+
+private:
+
+  int DescriptorDist(const cv::Mat& a, const cv::Mat& b);
+  void ComputeThreeMaxima(const std::vector<std::vector<int>>& histo, const int L, int& ind1, int& ind2, int& ind3);
 private:
   std::shared_ptr<PinholeCamera> camera_model_;
   std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor_;
@@ -40,6 +50,8 @@ private:
   std::vector<float> inv_scale_factors_;
   std::vector<float> level_sigma2_;
   std::vector<float> inv_level_sigma2_;
+
+
 };
 
 } // namespace lslam

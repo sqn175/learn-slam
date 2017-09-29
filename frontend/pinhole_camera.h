@@ -39,7 +39,7 @@ public:
 
 private:
   // Compute undistorted image bounds 
-  void GetImageBounds();
+  void SetImageBounds();
 
 private:
   int img_width_; // image width in pixels
@@ -49,10 +49,10 @@ private:
   cv::Mat image_bounds_;
   
   cv::Mat K_;
-  double fu_; // camera focal lengths
-  double fv_; 
-  double cu_; // optical centers expressed in pixels coordinates
-  double cv_;
+  double fx_; // camera focal lengths
+  double fy_; 
+  double cx_; // optical centers expressed in pixels coordinates
+  double cy_;
   
   std::string distortion_type_; // distortion type
   // distortion_coeffs_= [k1,k2,p1,p2]

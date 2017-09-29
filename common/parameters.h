@@ -14,10 +14,10 @@ struct PinholeCameraParameters{
   int img_width; // image width in pixels
   int img_height; // image height in pixels
   
-  double fu; // camera focal lengths
-  double fv; 
-  double cu; // optical centers expressed in pixels coordinates
-  double cv;
+  double fx; // camera focal lengths
+  double fy; 
+  double cx; // optical centers expressed in pixels coordinates
+  double cy;
   std::string distortion_type;      // distortion type
   
   double k1; // radial parameter 1
