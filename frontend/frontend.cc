@@ -110,12 +110,12 @@ bool Frontend::DataAssociationBootstrap() {
     // TODO:: check landmark valid
     Eigen::Vector4d eigen_world_coor;
     cv::Mat x = world_coordinates.col((int)i);
-    x /= x.at<float>(3,0);
+    x /= x.at<double>(3,0);
 
     // Create landmark
     std::shared_ptr<lslam::Landmark> landmark = std::make_shared<lslam::Landmark>();
     landmark->set_pt_world(x.rowRange(0,3));
-    
+    std::cout<<"Landmark "<<i<<" \n"<<landmark->pt_world()<<std::endl;
     // Add 2 observation
     // The keyframe_ini is observating this landmark, the associated keypoint is queryIdx
     int query_idx = good_matches[i].queryIdx;
@@ -130,8 +130,8 @@ bool Frontend::DataAssociationBootstrap() {
     map_->AddLandmarkPoint(landmark);
     
     // Associate landmark to frame
-    last_frame_->AddLandmark(landmark, good_matches[i].queryIdx);
-    cur_frame_->AddLandmark(landmark, good_matches[i].trainIdx);
+    last_frame_->set_landmark( good_matches[i].queryIdx, landmark);
+    cur_frame_->set_landmark(good_matches[i].trainIdx, landmark);
   }
 
   return true;
@@ -159,7 +159,9 @@ bool Frontend::TrackToLastFrame() {
   int n_matches = guided_matcher_.ProjectionGuided3D2DMatcher(cur_frame_, last_frame_, th, true);
   // TUNE: 20?
   if (n_matches < 20) return false;
-
+  std::cout<<"Before optimization: \n"<<cur_frame_->T_cw()<<std::endl;
+  ORB_SLAM2::Optimizer::PoseOptimization(cur_frame_);
+  std::cout<<"After optimization: \n"<<cur_frame_->T_cw()<<std::endl;
   
 }
 

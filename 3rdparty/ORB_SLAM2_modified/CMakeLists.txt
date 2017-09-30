@@ -8,8 +8,9 @@ include_directories(
 #${PROJECT_SOURCE_DIR}
 ${PROJECT_SOURCE_DIR}/include
 #${EIGEN3_INCLUDE_DIR}
-../../frontend
-../../common
+../../frontend/
+../../common/
+../g2o/g2o/
 )
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
@@ -19,10 +20,13 @@ ORBextractor.cc
 MapDrawer.cc
 #FrameDrawer.cc
 Viewer.cc
+Optimizer.cc
+Converter.cc
 )
 
 target_link_libraries(${PROJECT_NAME}
 ${OpenCV_LIBS}
 ${EIGEN3_LIBS}
 ${Pangolin_LIBRARIES}
+${PROJECT_SOURCE_DIR}/../g2o/lib/libg2o.a
 )

@@ -6,6 +6,8 @@
  */
 
 #include "slam.h"
+#include <opencv2/highgui.hpp>
+#include <opencv2/core.hpp>
 
 namespace lslam {
 
@@ -32,9 +34,12 @@ bool Slam::Init(const std::string config_file) {
   visualization_thread_ = std::thread(&Slam::VisualizationLoop, this);
 
 }
-bool Slam::AddMonoImage(const cv::Mat &image, const unsigned long &timestamp) {
+bool Slam::AddMonoImage(const cv::Mat &image, const double &timestamp) {
   // Check image is valid
   CHECK(image.data) << "Invalid image input!";
+  // test
+  if (timestamp < 1403637156538319104/1e9) 
+    return false;
   if (last_added_camerameas_time_ > timestamp) {
     LOG(ERROR) << "Received image timestamp from past.";
     return false;

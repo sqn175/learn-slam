@@ -10,6 +10,8 @@
 #include <opencv2/calib3d.hpp>
 #include <glog/logging.h>
 
+#include <Optimizer.h>
+
 #include "frame.h"
 #include "map.h"
 #include "pinhole_camera.h"

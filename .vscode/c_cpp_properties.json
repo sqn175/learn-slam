@@ -36,6 +36,7 @@
                 "/usr/lib/gcc/x86_64-linux-gnu/4.8/include-fixed",
                 "${workspaceRoot}",
                 "${workspaceRoot}/3rdparty/ORB_SLAM2_modified",
+                "${workspaceRoot}/3rdparty/g2o/g2o",
                 "${workspaceRoot}/common",
                 "${workspaceRoot}/frontend",
                 "${workspaceRoot}/slam"

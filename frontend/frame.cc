@@ -16,7 +16,7 @@ Frame::Frame() {
   range_searcher_ = std::make_shared<RangeSearcher>();
 }
 
-Frame::Frame(unsigned long timestamp, unsigned long id, const cv::Mat& image)
+Frame::Frame(double timestamp, unsigned long id, const cv::Mat& image)
   : timestamp_(timestamp)
   , id_(id) 
   , image_(image){
@@ -25,6 +25,8 @@ Frame::Frame(unsigned long timestamp, unsigned long id, const cv::Mat& image)
 }
 
 void Frame::PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor> extractor,std::shared_ptr<PinholeCamera> camera_model) {
+  orb_extractor_ = extractor;
+  camera_model_ = camera_model;
   // Extract ORB
   (*extractor)(image_, cv::Mat(), keypoints_, descriptors_);
   // Undistort
@@ -58,6 +60,9 @@ void Frame::PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor> extractor,std::s
 
   // Allocate landmarks
   landmarks_ = std::vector<std::shared_ptr<Landmark>>(keypoints_.size(), static_cast<std::shared_ptr<Landmark>>(NULL));
+
+  // Initialize outlier flag
+  outliers_ = std::vector<bool>(landmarks_.size(), false);
 }
 
 cv::Mat Frame::image() const {
@@ -72,12 +77,28 @@ cv::Mat Frame::descriptors() const {
   return descriptors_;
 }
 
+cv::KeyPoint Frame::undistorted_kp(size_t idx) const {
+  return undistorted_kps_[idx];
+}
+
 std::vector<std::shared_ptr<Landmark>> Frame::landmarks() const {
   return landmarks_;
 }
 
 std::shared_ptr<RangeSearcher> Frame::range_searcher() const {
   return range_searcher_;
+}
+
+std::shared_ptr<PinholeCamera> Frame::camera_model() const {
+  return camera_model_;
+}
+
+std::shared_ptr<ORB_SLAM2::ORBextractor> Frame::orb_extractor() const {
+  return orb_extractor_;
+}
+
+bool Frame::outlier(size_t idx) const {
+  return outliers_[idx];
 }
 
 void Frame::SetPose(cv::Mat T_cw) {
@@ -96,8 +117,17 @@ void Frame::set_T_cl(cv::Mat T_cl) {
   T_cl_ = T_cl;
 }
 
-void Frame::AddLandmark(std::shared_ptr<Landmark> landmark, size_t idx) {
+void Frame::set_outlier(size_t idx, bool flag) {
+  outliers_[idx] = flag;
+}
+
+
+void Frame::set_landmark( size_t idx, std::shared_ptr<Landmark> landmark) {
   landmarks_[idx] = landmark;
+}
+
+std::shared_ptr<Landmark> Frame::landmark(size_t idx) const {
+  return landmarks_[idx];
 }
 
 // TODO: consider if we need deep clone?

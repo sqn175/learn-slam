@@ -54,6 +54,7 @@ int GuidedMatcher::ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame,
   for (int i = 0; i < landmarks.size(); ++i) {
     auto landmark = landmarks[i];
     if (landmark) {
+      // TODO: check landmark outlier
       // Project landmark to current frame, projection result is uv
       cv::Mat p_uv;
       if (landmark->IsProjectable(cur_frame, camera_model_, p_uv)) {
@@ -94,7 +95,7 @@ int GuidedMatcher::ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame,
 
         if (min_dist <= TH_HIGH)
         {
-          cur_frame->AddLandmark(landmark, idx_bestmatch);
+          cur_frame->set_landmark(idx_bestmatch, landmark);
           n_matches++;
 
           // Check orientation
@@ -124,7 +125,7 @@ int GuidedMatcher::ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame,
     for (int i = 0; i < HISTO_LENGTH; ++i) {
       if (i != ind1 && i != ind2 && i != ind3) {
         for (size_t j = 0; j < rot_hist[i].size(); ++j) {
-          cur_frame->AddLandmark(static_cast<std::shared_ptr<Landmark>>(NULL), rot_hist[i][j]);
+          cur_frame->set_landmark(rot_hist[i][j], static_cast<std::shared_ptr<Landmark>>(NULL));
           n_matches--;
         }
       }

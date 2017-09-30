@@ -48,6 +48,7 @@ private:
   // Image bounds after undistortion
   cv::Mat image_bounds_;
   
+  // K_ = (cv::Mat_<double>(3,3)<<fx_, 0, cx_, 0, fy_, cy_, 0, 0, 1);
   cv::Mat K_;
   double fx_; // camera focal lengths
   double fy_; 

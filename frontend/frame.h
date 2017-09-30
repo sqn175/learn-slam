@@ -27,7 +27,7 @@ public:
   // No default constructor
   Frame();
   
-  Frame(unsigned long timestamp, unsigned long id, const cv::Mat& image);
+  Frame(double timestamp, unsigned long id, const cv::Mat& image);
   
   ~Frame() {
   }
@@ -38,18 +38,23 @@ public:
   // 3. Allocating 
   void PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor>,std::shared_ptr<PinholeCamera>);
 
-
   // Accessors
   cv::Mat image() const;
   std::vector<cv::KeyPoint> keypoints() const;
+  cv::KeyPoint undistorted_kp(size_t idx) const;
   cv::Mat descriptors() const;
   std::vector<std::shared_ptr<Landmark>> landmarks() const;
   std::shared_ptr<RangeSearcher> range_searcher() const;
+  std::shared_ptr<Landmark> landmark(size_t idx) const; 
+  std::shared_ptr<PinholeCamera> camera_model() const;
+  std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor() const;
+  bool outlier(size_t) const;
 
   void SetPose(cv::Mat T_cw);
-  void AddLandmark(std::shared_ptr<Landmark> landmark, size_t idx);
+  void set_landmark(size_t idx, std::shared_ptr<Landmark> landmark);
   void set_T_cl(cv::Mat T_cl);
-  
+  void set_outlier(size_t idx, bool flag);
+
   cv::Mat T_cw() const;
   cv::Mat T_wc() const;
   cv::Mat T_cl() const;
@@ -64,6 +69,11 @@ private:
   cv::Mat image_; // the image as OpenCV's matrix
   // === Raw data ===
 
+  // The camera geometry
+  std::shared_ptr<PinholeCamera> camera_model_;
+  // Feature detector and descriptor extractor
+  std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor_;
+
   // === Data evidence ===
   std::vector<cv::KeyPoint> keypoints_; // the keypoints as OpenCV's struct
   std::vector<cv::KeyPoint> undistorted_kps_; // The undistorted keypoints
@@ -73,6 +83,8 @@ private:
   // === State ===
   // Landmarks associated to keypoints, NULL for no association
   std::vector<std::shared_ptr<Landmark>> landmarks_;
+  // Flag to identify outlier associations
+  std::vector<bool> outliers_; 
   // Camera Pose, cw -> world coordinate to camera coordinate
   cv::Mat T_cw_; // transformation matrix
   cv::Mat R_cw_; // rotation matrix

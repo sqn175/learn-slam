@@ -41,7 +41,7 @@ public:
   // Feed a monocular image frame to system and process it.
   // Input: monocular RGB(CV_8UC3) or grayscale (CV_8U) image
   // Output: Camera world coordinate pose
-  bool AddMonoImage(const cv::Mat &image, const unsigned long &timestamp);
+  bool AddMonoImage(const cv::Mat &image, const double &timestamp);
 
 private:
   void FrameConsumerLoop();
