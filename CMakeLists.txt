@@ -22,9 +22,8 @@ message(STATUS "opencv include path:"  ${OpenCV_INCLUDE_DIRS})
 find_package(Eigen3 3.1.0 REQUIRED)
 
 find_package(Pangolin REQUIRED)
-include_directories(${Pangolin_INCLUDE_DIRS})
-message(STATUS "pangolin include path:"  ${Pangolin_INCLUDE_DIRS})
-
+include_directories(
+${Pangolin_INCLUDE_DIRS})
 # Require Glog
 find_package(Glog REQUIRED)
 include_directories(BEFORE ${GLOG_INCLUDE_DIRS})

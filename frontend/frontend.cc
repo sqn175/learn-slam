@@ -141,7 +141,7 @@ void Frontend::DataAssociation() {
   // Track
   bool tracked = false;
   tracked = TrackToLastFrame();
-
+  CHECK(tracked) << "Track failed";
 }
 
 // TODO: method as a new class
@@ -150,6 +150,7 @@ bool Frontend::TrackToLastFrame() {
   if (!last_frame_) return false;
   // We do not have a predicted velocity
   if (!(last_frame_->T_cl().data)) return false;
+
   // Initialize current frame pose using predicted velocity
   // We assume camera as a const velocity model
   cur_frame_->SetPose(last_frame_->T_cl()*last_frame_->T_cw()); 

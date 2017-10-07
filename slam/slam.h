@@ -35,7 +35,7 @@ public:
 
   // Initialize Slam system, including:
   // - Launch theads: tracking thread
-  // - Initialize visualization routine, visualization is main thread
+  // - Initialize visualization routine
   bool Init(const std::string config_file);
 
   // Feed a monocular image frame to system and process it.
@@ -76,8 +76,6 @@ private:
   unsigned long last_added_camerameas_id_; // id
 
   Frontend frontend_; // The frontend
-  Visualizer visualizer_; // The visualizer
-  
 
 };
     

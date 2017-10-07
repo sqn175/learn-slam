@@ -30,7 +30,7 @@ void Landmark::ComputeDistinctiveDescriptors() {
   std::vector<cv::Mat> all_descriptors;
   all_descriptors.reserve(size);
   for (auto i = observations_.begin(); i != observations_.end(); ++i) {
-    std::shared_ptr<Frame> cm_i = (*i).first->camera_measurement();
+    std::shared_ptr<Frame> cm_i = (*i).first->frame();
     all_descriptors.push_back(cm_i->descriptors().row((*i).second));
   }
   

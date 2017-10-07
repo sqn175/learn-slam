@@ -39,7 +39,9 @@
                 "${workspaceRoot}/3rdparty/g2o/g2o",
                 "${workspaceRoot}/common",
                 "${workspaceRoot}/frontend",
-                "${workspaceRoot}/slam"
+                "${workspaceRoot}/slam",
+                "/home/sqn/Pangolin/include/",
+                "/home/sqn/Pangolin/build/src/include/"
             ],
             "defines": [],
             "intelliSenseMode": "clang-x64",

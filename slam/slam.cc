@@ -68,15 +68,8 @@ void Slam::FrameConsumerLoop() {
 }
 
 void Slam::VisualizationLoop() {
-  std::shared_ptr<Frame> camera_meas;
-  std::string window_name = "frame";
-  cv::namedWindow(window_name);
-  while (true) {
-    if (camera_meas_visualized_.PopBlocking(&camera_meas) == false)
-      return;
-
-    visualizer_.DrawFrameAndMap(window_name, camera_meas);
-  }
+  Visualizer visualizer(camera_meas_visualized_, map_);
+  visualizer.Run();
 }
 
 } // namespace lslam

@@ -17,9 +17,6 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
 add_library(${PROJECT_NAME} STATIC
 ORBextractor.cc
-MapDrawer.cc
-#FrameDrawer.cc
-Viewer.cc
 Optimizer.cc
 Converter.cc
 )
@@ -27,6 +24,6 @@ Converter.cc
 target_link_libraries(${PROJECT_NAME}
 ${OpenCV_LIBS}
 ${EIGEN3_LIBS}
-${Pangolin_LIBRARIES}
+#${Pangolin_LIBRARIES}
 ${PROJECT_SOURCE_DIR}/../g2o/lib/libg2o.a
 )

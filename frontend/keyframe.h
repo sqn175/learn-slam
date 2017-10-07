@@ -16,13 +16,13 @@ class Frame;
 
 class KeyFrame{
 public:
-  KeyFrame(std::shared_ptr<Frame> camera_measurement);
+  KeyFrame(std::shared_ptr<Frame> frame);
   ~KeyFrame() { }
   
-  std::shared_ptr<Frame> camera_measurement() const;
+  std::shared_ptr<Frame> frame() const;
   
 private:
-  std::shared_ptr<Frame> camera_measurement_; // Set camera_measurement_ as keyframe
+  std::shared_ptr<Frame> frame_; // Set frame_ as keyframe
 };
 
 } // namespace lslam

@@ -44,6 +44,8 @@
         "ostream": "cpp",
         "sstream": "cpp",
         "streambuf": "cpp",
-        "bitset": "cpp"
+        "bitset": "cpp",
+        "vector": "cpp",
+        "valarray": "cpp"
     }
 }
