@@ -6,6 +6,10 @@
  */
 
 #include "guided_matcher.h"
+#include <iostream>
+#include <opencv2/highgui.hpp>
+#include <opencv2/features2d.hpp>
+#include "limits"
 
 namespace lslam {
 
@@ -28,6 +32,160 @@ void GuidedMatcher::set_orb_extractor( std::shared_ptr<ORB_SLAM2::ORBextractor> 
   inv_level_sigma2_ = orb_extractor->GetInverseScaleSigmaSquares();
 }
   
+int GuidedMatcher::Matcher(const cv::Mat& query_descriptors, const std::shared_ptr<Frame> train_frame, 
+                            const std::vector<cv::Mat>& guided_search_ranges,
+                            std::vector<cv::DMatch>& matches,
+                            const float dist_th, const bool use_ratio_test, const float ratio) {
+
+  // TODO: check input is valid
+  int n_match = 0;
+  int size = guided_search_ranges.size();
+  CHECK(query_descriptors.rows == size);
+  matches.clear();
+  matches.reserve(size);
+  matches = std::vector<cv::DMatch>(size, cv::DMatch(-1,-1,std::numeric_limits<float>::max()));
+
+  cv::Mat train_descriptors = train_frame->descriptors();
+  std::vector<cv::DMatch> inv_matches(train_descriptors.rows, cv::DMatch(-1,-1,std::numeric_limits<float>::max()));
+
+  for (int i = 0; i < size; ++i) {
+    // Zero mat ranges means its invalid
+    if (cv::countNonZero(guided_search_ranges[i]) < 1) {
+      matches.push_back(cv::DMatch(i,-1,std::numeric_limits<float>::max()));
+      continue;
+    }
+    std::vector<size_t> indices = train_frame->range_searcher()->PointsInRange(guided_search_ranges[i]);
+    
+    if (indices.empty())
+      continue;
+
+    cv::Mat query_descriptor = query_descriptors.row(i);
+    int train_idx = -1;
+
+    // We search in indices
+    float min_dist = std::numeric_limits<float>::max();
+    float min_dist2 = std::numeric_limits<float>::max();
+
+    for (auto& idx : indices) {
+      float dist = DescriptorDist(query_descriptor, train_descriptors.row(idx));
+
+      if (dist < min_dist) {
+        if (use_ratio_test) {
+          min_dist2 = min_dist;
+        }
+        min_dist = dist;
+        train_idx = idx;
+      } else if (use_ratio_test && dist < min_dist2) {
+        min_dist2 = dist;
+      }
+    }
+
+    // If the distance is above the dist_th, the match is invalid
+    if (min_dist > dist_th) {
+      matches[i] = cv::DMatch(i,-1,std::numeric_limits<float>::max());
+      continue;
+    }
+
+    if (use_ratio_test) {
+      // We apply the ratio test
+      if (min_dist >= ratio * min_dist2) {
+        matches[i] = cv::DMatch(i,-1,std::numeric_limits<float>::max());
+        continue;
+      }
+    }
+
+    // We get a match, but we need it to be one to one 
+    cv::DMatch inv_match = inv_matches[train_idx];
+    if (inv_match.trainIdx >= 0) {
+      if (inv_match.distance < min_dist) {
+        matches[i] = cv::DMatch(i,-1,std::numeric_limits<float>::max());
+        continue;
+      }
+    }
+    matches[i] = cv::DMatch(i, train_idx, min_dist);
+    inv_matches[i] = cv::DMatch(train_idx, i, min_dist);
+    n_match++;
+  }
+
+  return n_match;
+}
+
+void GuidedMatcher::SetupGuided2D2DMatcher(std::shared_ptr<Frame> init_frame) {
+  init_query_frame_ = init_frame;
+  const std::vector<cv::KeyPoint>& undistorted_kps = init_frame->undistorted_kps();
+  guided_2d_pts_.resize(undistorted_kps.size());
+  for (int i = 0; i < undistorted_kps.size(); ++i) {
+    guided_2d_pts_[i] = undistorted_kps[i].pt;
+  }
+  init_query_descriptors_ = init_frame->descriptors();
+  std::cout<<init_query_descriptors_.rowRange(0,10)<<std::endl;
+}
+
+int GuidedMatcher::Guided2D2DMatcher(std::shared_ptr<Frame> train_frame, std::vector<cv::DMatch> matches, 
+                                      const int radius, const float dist_th,
+                                      const bool use_ratio_test, const float ratio, const bool check_rotation ) {
+  // Wrap guided_search_ranges, zero mat range means its invalid 
+  std::vector<cv::Mat> search_ranges(guided_2d_pts_.size(), cv::Mat::zeros(2,2,CV_64F));
+  for (int i = 0; i < guided_2d_pts_.size(); ++i) {
+    // We only search octave 0
+    if (init_query_frame_->undistorted_kp(i).octave > 0)
+      continue;
+    search_ranges[i].at<double>(0,0) = (double)guided_2d_pts_[i].x - radius;
+    search_ranges[i].at<double>(0,1) = (double)guided_2d_pts_[i].y - radius;
+    search_ranges[i].at<double>(1,0) = (double)guided_2d_pts_[i].x + radius;
+    search_ranges[i].at<double>(1,1) = (double)guided_2d_pts_[i].y + radius;
+  }
+
+  // We search
+  int n_match = Matcher(init_query_descriptors_, train_frame, search_ranges, matches, dist_th, use_ratio_test, ratio);
+
+  cv::Mat img_matches;
+  std::vector<cv::DMatch> match_test;
+
+  // Check rotation
+  if (check_rotation) {
+    std::vector<std::vector<int>> rot_hist(HISTO_LENGTH, std::vector<int>());
+    const float factor = HISTO_LENGTH / 360.0f;
+    // Construc a rotation histogram from matches
+    for (auto& match : matches) {
+      if (match.trainIdx < 0)
+        continue;
+      float rot = init_query_frame_->undistorted_kp(match.queryIdx).angle - 
+                  train_frame->undistorted_kp(match.trainIdx).angle;
+      if (rot < 0.0)
+        rot += 360.0f;
+      int bin = std::round(rot*factor);
+      if (bin == HISTO_LENGTH)
+        bin = 0;
+      CHECK(bin>=0 && bin<HISTO_LENGTH);
+      rot_hist[bin].push_back(match.queryIdx);
+    }
+
+    int ind1 = -1, ind2 = -1, ind3 = -1;
+    ComputeThreeMaxima(rot_hist, HISTO_LENGTH, ind1, ind2, ind3);
+    // We only accept the match that fall into the first three strongest columns
+    for (int i = 0; i < HISTO_LENGTH; ++i) {
+      if (i == ind1 || i == ind2 || i == ind3)
+        continue;
+      // Kick out the match that do NOT pass rotation check
+      for (size_t j = 0; j < rot_hist[i].size(); ++j) {
+        int query_idx = rot_hist[i][j];
+        matches[query_idx] = cv::DMatch(query_idx,-1,std::numeric_limits<float>::max());
+        n_match--;
+      }
+    }
+  }
+
+  // Update guided_2d_pts
+  for (size_t i = 0; i < matches.size(); ++i) {
+    if (matches[i].trainIdx < 0)
+      continue;
+    guided_2d_pts_[i] = train_frame->undistorted_kp(matches[i].trainIdx).pt;
+  }
+
+  return n_match;
+}
+
 int GuidedMatcher::ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame, std::vector<std::shared_ptr<Landmark>> landmarks) {
   int n_matches = 0;
 

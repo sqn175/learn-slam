@@ -95,7 +95,6 @@ int main(){
   // find Homography
   cv::Mat mask_h;
   cv::Mat homography_matrix = cv::findHomography(src_points, dst_points, cv::RANSAC, 5.991, mask_h, 500, 0.99);
-  std::cout<< mask_h << std::endl;
   
   // check homography 
   double score = lslam::ScoreHomography(src_points, dst_points, homography_matrix);

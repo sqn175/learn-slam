@@ -5,6 +5,9 @@
 
 #include <iostream>
 #include <fstream>
+#include <chrono>
+#include <ctime>
+
 
 #include "frontend.h"
 
@@ -14,16 +17,21 @@
 
 namespace lslam {
 
-Frontend::Frontend() : state_(FrontEndState::kNotReady) {
+Frontend::Frontend() : state_(FrontEndState::kNotInitialized) {
 }
-
+/*
 bool Frontend::DataAssociationBootstrap() {
   
   // Find correspondences
   cv::BFMatcher matcher(cv::NORM_HAMMING);
   std::vector<std::vector<cv::DMatch>> matches;
+
+  auto start = std::chrono::high_resolution_clock::now();
   // KNN matcher, k = 2, find the best match and the second best match
   matcher.knnMatch(last_frame_->descriptors(), cur_frame_->descriptors(), matches, 2);
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  std::cout << "Brute-force match: " << elapsed.count() << " ms" << std::endl;
   
   std::vector<cv::DMatch> good_matches;
   
@@ -60,10 +68,6 @@ bool Frontend::DataAssociationBootstrap() {
   // Recover relative camera pose from essential matrix
   cv::Mat R, t;
   cv::recoverPose(essential_matrix, src_points, dst_points, K, R, t, cv::noArray());
-
-  // test
-  std::cout<<R<<std::endl;
-  std::cout<<t<<std::endl;
   
   // Get quality
   int inlier_cnt = cv::countNonZero(fundamental_inliers_mask);
@@ -87,9 +91,6 @@ bool Frontend::DataAssociationBootstrap() {
   cur_frame_->SetPose(T_cw_cur);
   cur_frame_->set_T_cl(T_cw_cur*last_frame_->T_wc());
 
-  std::cout<<"T_cw_prev"<<T_cw_prev<<std::endl;
-  std::cout<<"T_cw_cur"<<T_cw_cur<<std::endl;
-  
   // Initial data association
   // We set the initial frame and current frame as keyframe
   auto keyframe_ini = std::make_shared<KeyFrame>(last_frame_);
@@ -115,7 +116,7 @@ bool Frontend::DataAssociationBootstrap() {
     // Create landmark
     std::shared_ptr<lslam::Landmark> landmark = std::make_shared<lslam::Landmark>();
     landmark->set_pt_world(x.rowRange(0,3));
-    std::cout<<"Landmark "<<i<<" \n"<<landmark->pt_world()<<std::endl;
+
     // Add 2 observation
     // The keyframe_ini is observating this landmark, the associated keypoint is queryIdx
     int query_idx = good_matches[i].queryIdx;
@@ -136,6 +137,47 @@ bool Frontend::DataAssociationBootstrap() {
 
   return true;
 }
+*/
+
+bool Frontend::DataAssociationBootstrap() {
+  // Set a initial reference frame
+  if (!init_frame_) {
+    // TUNE: 100
+    if (cur_frame_->keypoints().size() >= 100) {
+      // Assign initial reference frame
+      init_frame_ = cur_frame_;
+      // Setup the initial frame of 2d2d matcher
+      guided_matcher_.SetupGuided2D2DMatcher(init_frame_);
+    } 
+    return false;
+  }
+  
+  // Now we have a initial reference frame
+  // We ensure the incoming frame have enough keypoints
+  // TUNE: 100
+  if (cur_frame_->keypoints().size() < 100) {
+    // delete initial reference frame
+    init_frame_.reset();
+    return false;
+  }
+
+  // Find correspondences
+  std::vector<cv::DMatch> matches;
+  int n_match = guided_matcher_.Guided2D2DMatcher(cur_frame_, matches, 100, 50, true, 0.9, true);
+
+  // Check if we have enough correspondences
+  // TUNE: 100
+  if (n_match < 100) {
+    init_frame_.reset();
+    return false;
+  } else {
+    int test;
+    return true;
+  }
+
+  // Recover pose from correspondences
+
+}
 
 void Frontend::DataAssociation() {
   // Track
@@ -146,7 +188,7 @@ void Frontend::DataAssociation() {
 
 // TODO: method as a new class
 bool Frontend::TrackToLastFrame() {
-  // No last frame exists
+  // No last frame
   if (!last_frame_) return false;
   // We do not have a predicted velocity
   if (!(last_frame_->T_cl().data)) return false;
@@ -157,21 +199,37 @@ bool Frontend::TrackToLastFrame() {
   // Perform active ORB searching and matching, we get 3d-2d matches
   // TUNE: search range
   int th = 15; 
+  auto start = std::chrono::high_resolution_clock::now();
   int n_matches = guided_matcher_.ProjectionGuided3D2DMatcher(cur_frame_, last_frame_, th, true);
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  std::cout << "Guided match: " << elapsed.count() << " ms" << std::endl;
   // TUNE: 20?
   if (n_matches < 20) return false;
+
+  start = std::chrono::high_resolution_clock::now();
+
   std::cout<<"Before optimization: \n"<<cur_frame_->T_cw()<<std::endl;
   ORB_SLAM2::Optimizer::PoseOptimization(cur_frame_);
   std::cout<<"After optimization: \n"<<cur_frame_->T_cw()<<std::endl;
+
+  end = std::chrono::high_resolution_clock::now();
+  elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  std::cout << "Motion-only optimization: " << elapsed.count() << " ms" << std::endl;
   
+  return true;
 }
 
 void Frontend::Process(std::shared_ptr<Frame> cur_frame) {
 
   cur_frame_ = cur_frame;
   
+  auto start = std::chrono::high_resolution_clock::now();
   // Extract ORB features
   cur_frame_->PreProcess(orb_extractor_, camera_model_);
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  std::cout << "Frame preprocess: " << elapsed.count() << " ms" << std::endl;
 
   if (state_ == FrontEndState::kInitialized) {
     // State: initialized  
@@ -186,12 +244,6 @@ void Frontend::Process(std::shared_ptr<Frame> cur_frame) {
       state_ = FrontEndState::kInitialized;
       LOG(INFO) << "Initialized!";
     }
-  } else if (state_ == FrontEndState::kNotReady) {
-    // Steate: not ready
-    // System just start, frames received is less than 2
-    // For monocular case, we need two frames for initialization
-    if (last_frame_)
-      state_ = FrontEndState::kNotInitialized;
   }
 
   last_frame_ = cur_frame_;
@@ -205,7 +257,7 @@ void Frontend::init(const ParametersReader& params) {
 
   // Initialize ORB extractor
   // TODO: using params to initialize
-  int features = 1000;
+  int features = 2000;
   float scale = 1.2;
   int level = 8;
   int ini = 20;

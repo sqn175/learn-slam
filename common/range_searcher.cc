@@ -48,6 +48,7 @@ std::vector<size_t> RangeSearcher::PointsInRange(const cv::Mat& search_bounds) {
   double min_y_search = search_bounds.at<double>(0,1);
   double max_x_search = search_bounds.at<double>(1,0);
   double max_y_search = search_bounds.at<double>(1,1);
+  
   int min_grid_col = std::max(0, (int)std::floor((min_x_search - min_x_)*grid_size_inv_));
   if (min_grid_col >= grids_rows_) return indices;
   int min_grid_row = std::max(0, (int)std::floor((min_y_search - min_y_)*grid_size_inv_));

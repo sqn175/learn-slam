@@ -41,8 +41,9 @@ public:
   // Accessors
   cv::Mat image() const;
   std::vector<cv::KeyPoint> keypoints() const;
-  cv::KeyPoint undistorted_kp(size_t idx) const;
-  cv::Mat descriptors() const;
+  const std::vector<cv::KeyPoint>& undistorted_kps() const;
+  const cv::KeyPoint& undistorted_kp(size_t idx) const;
+  const cv::Mat& descriptors() const;
   std::vector<std::shared_ptr<Landmark>> landmarks() const;
   std::shared_ptr<RangeSearcher> range_searcher() const;
   std::shared_ptr<Landmark> landmark(size_t idx) const; 

@@ -3,10 +3,8 @@
  * Date: 2017-08-21
  */
 
-#include <iostream>
-
 #include "frame.h"
-
+#include <iostream>
 #include "my_assert.h"
 
 namespace lslam {
@@ -18,8 +16,8 @@ Frame::Frame() {
 
 Frame::Frame(double timestamp, unsigned long id, const cv::Mat& image)
   : timestamp_(timestamp)
-  , id_(id) 
-  , image_(image){
+  , id_(id) {
+  image.copyTo(image_);
   SetPose(cv::Mat::eye(4,4,CV_64F));
   range_searcher_ = std::make_shared<RangeSearcher>();
 }
@@ -28,6 +26,8 @@ void Frame::PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor> extractor,std::s
   orb_extractor_ = extractor;
   camera_model_ = camera_model;
   // Extract ORB
+  std::cout<<"Mat:"<<std::endl;
+  std::cout<<image_.rowRange(0,10)<<std::endl;
   (*extractor)(image_, cv::Mat(), keypoints_, descriptors_);
   // Undistort
   if (camera_model->DistortionType().compare("radialtangential") == 0 ) {
@@ -73,11 +73,15 @@ std::vector<cv::KeyPoint> Frame::keypoints() const {
   return keypoints_;
 }
 
-cv::Mat Frame::descriptors() const {
+const std::vector<cv::KeyPoint>& Frame::undistorted_kps() const {
+  return undistorted_kps_;
+}
+
+const cv::Mat& Frame::descriptors() const {
   return descriptors_;
 }
 
-cv::KeyPoint Frame::undistorted_kp(size_t idx) const {
+const cv::KeyPoint& Frame::undistorted_kp(size_t idx) const {
   return undistorted_kps_[idx];
 }
 
@@ -145,8 +149,6 @@ cv::Mat Frame::T_cl() const {
 
 cv::Mat Frame::Project(const cv::Mat pt3d_w) {
   CHECK(pt3d_w.cols == 1 && pt3d_w.rows == 3) << "Invalid 3d point.";
-  std::cout<<"T_cw:\n"<<T_cw_<<std::endl;
-  std::cout<<"R_cw:\n"<<R_cw_<<std::endl;
   CHECK(T_cw_.data) << "The pose of frame is NOT set.";
   cv::Mat p_c = R_cw_*pt3d_w + t_cw_;
   return p_c;

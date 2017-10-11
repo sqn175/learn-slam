@@ -24,7 +24,6 @@ class Frontend{
 
 public:
   enum class FrontEndState {
-    kNotReady = 0,   // no camera measurement
     kNotInitialized, // not initialized
     kInitialized,    // initialized
   };
@@ -68,6 +67,8 @@ private:
   std::shared_ptr<Frame> cur_frame_; // current camera_measurement
   
   std::shared_ptr<Frame> last_frame_; // previous camera_measurement
+
+  std::shared_ptr<Frame> init_frame_; // Initial frame used for initialization
   
   // Guided matcher
   GuidedMatcher guided_matcher_;

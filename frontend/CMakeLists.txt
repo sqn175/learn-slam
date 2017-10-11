@@ -18,4 +18,5 @@ guided_matcher.cc
 target_link_libraries(${PROJECT_NAME}
   ${OpenCV_LIBS}
   ORB_SLAM2
+  common
 )

@@ -58,7 +58,7 @@ int main(int argc, char **argv){
 
   // Feed image to slam system
   for (int i = 0; i < image_str.size(); ++i) {
-    cv::Mat image = cv::imread(images_file_name + image_str[i], CV_LOAD_IMAGE_GRAYSCALE);
+    cv::Mat image = cv::imread(images_file_name + image_str[i], CV_LOAD_IMAGE_UNCHANGED);
     slam.AddMonoImage(image, timestamps[i]);
 
   }
