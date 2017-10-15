@@ -681,7 +681,12 @@ vector<cv::KeyPoint> ORBextractor::DistributeOctTree(const vector<cv::KeyPoint>&
                 vector<pair<int,ExtractorNode*> > vPrevSizeAndPointerToNode = vSizeAndPointerToNode;
                 vSizeAndPointerToNode.clear();
 
-                sort(vPrevSizeAndPointerToNode.begin(),vPrevSizeAndPointerToNode.end());
+                sort(vPrevSizeAndPointerToNode.begin(),vPrevSizeAndPointerToNode.end(), 
+                    [](const pair<int,ExtractorNode*>& lhs, const pair<int,ExtractorNode*>& rhs) {
+                      return (lhs.first < rhs.first || (lhs.first == rhs.first && lhs.second->UL.x < rhs.second->UL.x));
+                    });
+                
+                //sort(vPrevSizeAndPointerToNode.begin(),vPrevSizeAndPointerToNode.end());
                 for(int j=vPrevSizeAndPointerToNode.size()-1;j>=0;j--)
                 {
                     ExtractorNode n1,n2,n3,n4;

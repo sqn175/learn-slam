@@ -170,13 +170,20 @@ bool Frontend::DataAssociationBootstrap() {
   if (n_match < 100) {
     init_frame_.reset();
     return false;
-  } else {
-    int test;
-    return true;
   }
-
+  
   // Recover pose from correspondences
-
+  cv::Mat R; // CV_32F
+  cv::Mat t;
+  std::vector<cv::Point3f> points_3d;
+  std::vector<bool> is_triangulated;
+  if (ComputeEgomotion(init_frame_, cur_frame_, matches, R, t, points_3d, is_triangulated)) {
+    std::cout<<"Initialized!";
+    std::cout<<"R:"<<std::endl;
+    std::cout<<R<<std::endl<<t<<std::endl;
+  } else {
+    return false;
+  }
 }
 
 void Frontend::DataAssociation() {

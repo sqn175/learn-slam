@@ -17,6 +17,7 @@
 #include "pinhole_camera.h"
 #include "parameters_reader.h"
 #include "guided_matcher.h"
+#include "cv.h"
 
 namespace lslam {
 

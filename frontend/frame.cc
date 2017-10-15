@@ -25,9 +25,8 @@ Frame::Frame(double timestamp, unsigned long id, const cv::Mat& image)
 void Frame::PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor> extractor,std::shared_ptr<PinholeCamera> camera_model) {
   orb_extractor_ = extractor;
   camera_model_ = camera_model;
+  
   // Extract ORB
-  std::cout<<"Mat:"<<std::endl;
-  std::cout<<image_.rowRange(0,10)<<std::endl;
   (*extractor)(image_, cv::Mat(), keypoints_, descriptors_);
   // Undistort
   if (camera_model->DistortionType().compare("radialtangential") == 0 ) {
@@ -56,7 +55,7 @@ void Frame::PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor> extractor,std::s
   }
 
   // Build gridding range searcher
-  range_searcher_->BuildGrids(undistorted_kps_, camera_model->image_bounds(), 2);
+  range_searcher_->BuildGrids(undistorted_kps_, camera_model->image_bounds(), 1);
 
   // Allocate landmarks
   landmarks_ = std::vector<std::shared_ptr<Landmark>>(keypoints_.size(), static_cast<std::shared_ptr<Landmark>>(NULL));

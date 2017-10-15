@@ -49,13 +49,14 @@ std::vector<size_t> RangeSearcher::PointsInRange(const cv::Mat& search_bounds) {
   double max_x_search = search_bounds.at<double>(1,0);
   double max_y_search = search_bounds.at<double>(1,1);
   
+  // TODO: check if assigned correctly
   int min_grid_col = std::max(0, (int)std::floor((min_x_search - min_x_)*grid_size_inv_));
-  if (min_grid_col >= grids_rows_) return indices;
+  if (min_grid_col >= grids_cols_) return indices;
   int min_grid_row = std::max(0, (int)std::floor((min_y_search - min_y_)*grid_size_inv_));
-  if (min_grid_row >= grids_cols_) return indices;
-  int max_grid_col = std::min(grids_rows_-1, (int)std::ceil((max_x_search - min_x_)*grid_size_inv_));
+  if (min_grid_row >= grids_rows_) return indices;
+  int max_grid_col = std::min(grids_cols_-1, (int)std::ceil((max_x_search - min_x_)*grid_size_inv_));
   if (max_grid_col < 0) return indices;
-  int max_grid_row = std::min(grids_cols_-1, (int)std::ceil((max_y_search - min_y_)*grid_size_inv_));
+  int max_grid_row = std::min(grids_rows_-1, (int)std::ceil((max_y_search - min_y_)*grid_size_inv_));
   if (max_grid_row < 0) return indices;
 
   for (int i_row = min_grid_row; i_row <= max_grid_row; ++i_row) {

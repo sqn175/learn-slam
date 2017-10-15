@@ -26,7 +26,7 @@ public:
 
   // 2d-2d matcher
   void SetupGuided2D2DMatcher(std::shared_ptr<Frame> init_frame);
-  int Guided2D2DMatcher(std::shared_ptr<Frame> train_frame, std::vector<cv::DMatch> matches, 
+  int Guided2D2DMatcher(std::shared_ptr<Frame> train_frame, std::vector<cv::DMatch>& matches, 
     const int radius,const float dist_th, const bool use_ratio_test, const float ratio, const bool check_rotation );
   // 3d-2d matcher
   // Project Landmarks into the current frame, and search matches
@@ -37,14 +37,15 @@ public:
 public:
   static const int TH_LOW;
   static const int TH_HIGH;
-  static const int HISTO_LENGTH;
 
 private:
 
   // For every descriptor of query_descriptors, we have a corresponding guided_search_range in train_frame.
   // According to this guided_search_range, we can search fast. If guided_search_range is null, we skip this descriptor.
+  // guided_search_octaves: [min_octave, max_octave], included
   int Matcher(const cv::Mat& query_descriptors, const std::shared_ptr<Frame> train_frame, 
     const std::vector<cv::Mat>& guided_search_ranges,
+    const std::vector<std::pair<int, int>>& guided_search_octaves,
     std::vector<cv::DMatch>& matches,
     const float dist_th, const bool use_ratio_test, const float ratio);
   int DescriptorDist(const cv::Mat& a, const cv::Mat& b);

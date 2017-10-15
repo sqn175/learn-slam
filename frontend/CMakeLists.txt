@@ -2,7 +2,10 @@ cmake_minimum_required(VERSION 2.8)
 
 project(frontend)
 
-include_directories(../common)
+include_directories(
+  ../common
+  ../3rdparty/DBoW2
+  )
 
 add_library(${PROJECT_NAME} STATIC
 pinhole_camera.cc

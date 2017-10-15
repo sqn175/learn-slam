@@ -4,7 +4,6 @@
  * @Last Modified by: Shi Qin
  * @Last Modified time: 2017-09-26 21:01:20
  */
-
 #include "guided_matcher.h"
 #include <iostream>
 #include <opencv2/highgui.hpp>
@@ -15,7 +14,6 @@ namespace lslam {
 
 const int GuidedMatcher::TH_HIGH = 100;
 const int GuidedMatcher::TH_LOW = 50;
-const int GuidedMatcher::HISTO_LENGTH = 30;
 
 void GuidedMatcher::set_camera_model(std::shared_ptr<PinholeCamera> camera_model) {
   camera_model_ = camera_model;
@@ -34,6 +32,7 @@ void GuidedMatcher::set_orb_extractor( std::shared_ptr<ORB_SLAM2::ORBextractor> 
   
 int GuidedMatcher::Matcher(const cv::Mat& query_descriptors, const std::shared_ptr<Frame> train_frame, 
                             const std::vector<cv::Mat>& guided_search_ranges,
+                            const std::vector<std::pair<int, int>>& guided_search_octaves,
                             std::vector<cv::DMatch>& matches,
                             const float dist_th, const bool use_ratio_test, const float ratio) {
 
@@ -49,9 +48,13 @@ int GuidedMatcher::Matcher(const cv::Mat& query_descriptors, const std::shared_p
   std::vector<cv::DMatch> inv_matches(train_descriptors.rows, cv::DMatch(-1,-1,std::numeric_limits<float>::max()));
 
   for (int i = 0; i < size; ++i) {
-    // Zero mat ranges means its invalid
-    if (cv::countNonZero(guided_search_ranges[i]) < 1) {
-      matches.push_back(cv::DMatch(i,-1,std::numeric_limits<float>::max()));
+    if (i == 52) {
+      int a;
+      int b = a;
+    }
+    // EMPTY mat ranges means it's invalid, we skip
+    if (guided_search_ranges[i].empty()) {
+      matches[i] = cv::DMatch(i,-1,std::numeric_limits<float>::max());
       continue;
     }
     std::vector<size_t> indices = train_frame->range_searcher()->PointsInRange(guided_search_ranges[i]);
@@ -67,6 +70,13 @@ int GuidedMatcher::Matcher(const cv::Mat& query_descriptors, const std::shared_p
     float min_dist2 = std::numeric_limits<float>::max();
 
     for (auto& idx : indices) {
+      // Check octave
+      int octave = train_frame->undistorted_kp(idx).octave;
+      if (( octave < guided_search_octaves[i].first || octave > guided_search_octaves[i].second) &&
+            guided_search_octaves[i].first <= guided_search_octaves[i].second) {
+        continue;
+      }
+
       float dist = DescriptorDist(query_descriptor, train_descriptors.row(idx));
 
       if (dist < min_dist) {
@@ -103,7 +113,7 @@ int GuidedMatcher::Matcher(const cv::Mat& query_descriptors, const std::shared_p
       }
     }
     matches[i] = cv::DMatch(i, train_idx, min_dist);
-    inv_matches[i] = cv::DMatch(train_idx, i, min_dist);
+    inv_matches[train_idx] = cv::DMatch(train_idx, i, min_dist);
     n_match++;
   }
 
@@ -121,55 +131,76 @@ void GuidedMatcher::SetupGuided2D2DMatcher(std::shared_ptr<Frame> init_frame) {
   std::cout<<init_query_descriptors_.rowRange(0,10)<<std::endl;
 }
 
-int GuidedMatcher::Guided2D2DMatcher(std::shared_ptr<Frame> train_frame, std::vector<cv::DMatch> matches, 
+int GuidedMatcher::Guided2D2DMatcher(std::shared_ptr<Frame> train_frame, std::vector<cv::DMatch>& matches, 
                                       const int radius, const float dist_th,
                                       const bool use_ratio_test, const float ratio, const bool check_rotation ) {
-  // Wrap guided_search_ranges, zero mat range means its invalid 
-  std::vector<cv::Mat> search_ranges(guided_2d_pts_.size(), cv::Mat::zeros(2,2,CV_64F));
+  // Wrap guided_search_ranges, EMPTY mat range means its invalid 
+  // Wrap guided_search_octaves
+  std::vector<cv::Mat> search_ranges;
+  std::vector<std::pair<int, int>> search_octaves;
+  search_ranges.reserve(guided_2d_pts_.size());
+  search_octaves.reserve(guided_2d_pts_.size());
   for (int i = 0; i < guided_2d_pts_.size(); ++i) {
+    cv::Mat range;
+    std::pair<int, int> octave_section;
     // We only search octave 0
-    if (init_query_frame_->undistorted_kp(i).octave > 0)
-      continue;
-    search_ranges[i].at<double>(0,0) = (double)guided_2d_pts_[i].x - radius;
-    search_ranges[i].at<double>(0,1) = (double)guided_2d_pts_[i].y - radius;
-    search_ranges[i].at<double>(1,0) = (double)guided_2d_pts_[i].x + radius;
-    search_ranges[i].at<double>(1,1) = (double)guided_2d_pts_[i].y + radius;
+    if (init_query_frame_->undistorted_kp(i).octave == 0) {
+      range = cv::Mat(2,2,CV_64F);
+      range.at<double>(0,0) = (double)guided_2d_pts_[i].x - radius;
+      range.at<double>(0,1) = (double)guided_2d_pts_[i].y - radius;
+      range.at<double>(1,0) = (double)guided_2d_pts_[i].x + radius;
+      range.at<double>(1,1) = (double)guided_2d_pts_[i].y + radius;
+
+      octave_section = std::pair<int, int>(0,0);
+    }
+    search_ranges.push_back(range);
+
+    search_octaves.push_back(octave_section);
   }
 
   // We search
-  int n_match = Matcher(init_query_descriptors_, train_frame, search_ranges, matches, dist_th, use_ratio_test, ratio);
+  int n_match = Matcher(init_query_descriptors_, train_frame, search_ranges, search_octaves, matches, dist_th, use_ratio_test, ratio);
 
   cv::Mat img_matches;
   std::vector<cv::DMatch> match_test;
 
   // Check rotation
+  // cv::KeyPoint::angle:
+  //    computed orientation of the keypoint (-1 if not applicable); 
+  //    it's in [0,360) degrees and measured relative to image coordinate system, ie in clockwise.
+  // The rotation of two coherent keypoint is in (-360,360) degrees,
+  // We construct a rot_hist to classify the rotation degrees, and pick up the most common three histogram
   if (check_rotation) {
-    std::vector<std::vector<int>> rot_hist(HISTO_LENGTH, std::vector<int>());
-    const float factor = HISTO_LENGTH / 360.0f;
-    // Construc a rotation histogram from matches
+    // TUNE: 30
+    int histo_len = 30;
+    std::vector<std::vector<int>> rot_hist(histo_len, std::vector<int>());
+    const float histo_width = 360.0f / histo_len;
+    // Construct a rotation histogram from matches
     for (auto& match : matches) {
       if (match.trainIdx < 0)
         continue;
       float rot = init_query_frame_->undistorted_kp(match.queryIdx).angle - 
                   train_frame->undistorted_kp(match.trainIdx).angle;
-      if (rot < 0.0)
+      if (rot<0.0) 
         rot += 360.0f;
-      int bin = std::round(rot*factor);
-      if (bin == HISTO_LENGTH)
-        bin = 0;
-      CHECK(bin>=0 && bin<HISTO_LENGTH);
+      int bin = std::floor(rot/histo_width);
+      CHECK(bin>=0 && bin<histo_len);
       rot_hist[bin].push_back(match.queryIdx);
     }
 
     int ind1 = -1, ind2 = -1, ind3 = -1;
-    ComputeThreeMaxima(rot_hist, HISTO_LENGTH, ind1, ind2, ind3);
+    ComputeThreeMaxima(rot_hist, histo_len, ind1, ind2, ind3);
     // We only accept the match that fall into the first three strongest columns
-    for (int i = 0; i < HISTO_LENGTH; ++i) {
+    for (int i = 0; i < histo_len; ++i) {
       if (i == ind1 || i == ind2 || i == ind3)
         continue;
       // Kick out the match that do NOT pass rotation check
       for (size_t j = 0; j < rot_hist[i].size(); ++j) {
         int query_idx = rot_hist[i][j];
+        // Test
+        if (query_idx == 52) {
+          int test = 0;
+        }
         matches[query_idx] = cv::DMatch(query_idx,-1,std::numeric_limits<float>::max());
         n_match--;
       }
@@ -197,101 +228,102 @@ int GuidedMatcher::ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame,
 }
 
 int GuidedMatcher::ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame, std::shared_ptr<Frame> last_frame, const double th, const bool check_ori) {
-  int n_matches = 0;
+  // int n_matches = 0;
 
-  // Rotation Histogram (to check rotation consistency)
-  std::vector<std::vector<int>> rot_hist(HISTO_LENGTH, std::vector<int>());
-  const float factor = HISTO_LENGTH/360.0f;
 
-  std::vector<std::shared_ptr<Landmark>> landmarks = last_frame->landmarks();
-  std::vector<cv::KeyPoint> last_keypoints = last_frame->keypoints();
+  // // Rotation Histogram (to check rotation consistency)
+  // std::vector<std::vector<int>> rot_hist(HISTO_LENGTH, std::vector<int>());
+  // const float factor = HISTO_LENGTH/360.0f;
 
-  cv::Mat cur_descriptors = cur_frame->descriptors();
-  std::vector<cv::KeyPoint> cur_keypoints = cur_frame->keypoints();
+  // std::vector<std::shared_ptr<Landmark>> landmarks = last_frame->landmarks();
+  // std::vector<cv::KeyPoint> last_keypoints = last_frame->keypoints();
 
-  for (int i = 0; i < landmarks.size(); ++i) {
-    auto landmark = landmarks[i];
-    if (landmark) {
-      // TODO: check landmark outlier
-      // Project landmark to current frame, projection result is uv
-      cv::Mat p_uv;
-      if (landmark->IsProjectable(cur_frame, camera_model_, p_uv)) {
-        int last_octave = last_keypoints[i].octave;
-        // Search in a window, size depends on scale
-        double r = th*scale_factors_[last_octave];
+  // cv::Mat cur_descriptors = cur_frame->descriptors();
+  // std::vector<cv::KeyPoint> cur_keypoints = cur_frame->keypoints();
+
+  // for (int i = 0; i < landmarks.size(); ++i) {
+  //   auto landmark = landmarks[i];
+  //   if (landmark) {
+  //     // TODO: check landmark outlier
+  //     // Project landmark to current frame, projection result is uv
+  //     cv::Mat p_uv;
+  //     if (landmark->IsProjectable(cur_frame, camera_model_, p_uv)) {
+  //       int last_octave = last_keypoints[i].octave;
+  //       // Search in a window, size depends on scale
+  //       double r = th*scale_factors_[last_octave];
         
-        // We search
-        double u = p_uv.at<double>(0);
-        double v = p_uv.at<double>(1);
-        cv::Mat search_bounds(2,2,CV_64F);
-        search_bounds.at<double>(0,0) = u-r;
-        search_bounds.at<double>(0,1) = v-r;
-        search_bounds.at<double>(1,0) = u+r;
-        search_bounds.at<double>(1,1) = v+r;
+  //       // We search
+  //       double u = p_uv.at<double>(0);
+  //       double v = p_uv.at<double>(1);
+  //       cv::Mat search_bounds(2,2,CV_64F);
+  //       search_bounds.at<double>(0,0) = u-r;
+  //       search_bounds.at<double>(0,1) = v-r;
+  //       search_bounds.at<double>(1,0) = u+r;
+  //       search_bounds.at<double>(1,1) = v+r;
 
-        std::vector<size_t> indices = cur_frame->range_searcher()->PointsInRange(search_bounds);
-        if (indices.empty())  continue;
+  //       std::vector<size_t> indices = cur_frame->range_searcher()->PointsInRange(search_bounds);
+  //       if (indices.empty())  continue;
 
-        int min_dist = 256;
-        int idx_bestmatch = -1;
+  //       int min_dist = 256;
+  //       int idx_bestmatch = -1;
 
-        // Descriptor of this landmark
-        cv::Mat descriptors_landmark = landmark->descriptors();
+  //       // Descriptor of this landmark
+  //       cv::Mat descriptors_landmark = landmark->descriptors();
 
-        for (auto& idx : indices) {
-          // We already have a landmark associated to this feature
-          if (cur_frame->landmarks()[idx] && (cur_frame->landmarks()[idx])->ObservationCount() > 0)
-            continue;
+  //       for (auto& idx : indices) {
+  //         // We already have a landmark associated to this feature
+  //         if (cur_frame->landmarks()[idx] && (cur_frame->landmarks()[idx])->ObservationCount() > 0)
+  //           continue;
 
-          int dist = DescriptorDist(descriptors_landmark, cur_descriptors.row(idx));
+  //         int dist = DescriptorDist(descriptors_landmark, cur_descriptors.row(idx));
           
-          if (dist < min_dist) {
-            min_dist = dist;
-            idx_bestmatch = idx;
-          } 
-        }
+  //         if (dist < min_dist) {
+  //           min_dist = dist;
+  //           idx_bestmatch = idx;
+  //         } 
+  //       }
 
-        if (min_dist <= TH_HIGH)
-        {
-          cur_frame->set_landmark(idx_bestmatch, landmark);
-          n_matches++;
+  //       if (min_dist <= TH_HIGH)
+  //       {
+  //         cur_frame->set_landmark(idx_bestmatch, landmark);
+  //         n_matches++;
 
-          // Check orientation
-          if (check_ori) {
-            float angle_diff = last_keypoints[i].angle - cur_keypoints[idx_bestmatch].angle;
-            if (angle_diff < 0.0) {
-              angle_diff += 360.0f;
-            }
-            int bin = std::round(angle_diff*factor);
-            if (bin == HISTO_LENGTH)
-              bin = 0;
-            CHECK(bin >= 0 && bin < HISTO_LENGTH);
-            rot_hist[bin].push_back(idx_bestmatch);
-          }
-        }
-      }
-    }
-  }
+  //         // Check orientation
+  //         if (check_ori) {
+  //           float angle_diff = last_keypoints[i].angle - cur_keypoints[idx_bestmatch].angle;
+  //           if (angle_diff < 0.0) {
+  //             angle_diff += 360.0f;
+  //           }
+  //           int bin = std::round(angle_diff*factor);
+  //           if (bin == HISTO_LENGTH)
+  //             bin = 0;
+  //           CHECK(bin >= 0 && bin < HISTO_LENGTH);
+  //           rot_hist[bin].push_back(idx_bestmatch);
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
 
-  if (check_ori) {
-    int ind1 = -1;
-    int ind2 = -1;
-    int ind3 = -1;
+  // if (check_ori) {
+  //   int ind1 = -1;
+  //   int ind2 = -1;
+  //   int ind3 = -1;
 
-    ComputeThreeMaxima(rot_hist, HISTO_LENGTH, ind1, ind2, ind3);
+  //   ComputeThreeMaxima(rot_hist, HISTO_LENGTH, ind1, ind2, ind3);
 
-    for (int i = 0; i < HISTO_LENGTH; ++i) {
-      if (i != ind1 && i != ind2 && i != ind3) {
-        for (size_t j = 0; j < rot_hist[i].size(); ++j) {
-          cur_frame->set_landmark(rot_hist[i][j], static_cast<std::shared_ptr<Landmark>>(NULL));
-          n_matches--;
-        }
-      }
-    }
+  //   for (int i = 0; i < HISTO_LENGTH; ++i) {
+  //     if (i != ind1 && i != ind2 && i != ind3) {
+  //       for (size_t j = 0; j < rot_hist[i].size(); ++j) {
+  //         cur_frame->set_landmark(rot_hist[i][j], static_cast<std::shared_ptr<Landmark>>(NULL));
+  //         n_matches--;
+  //       }
+  //     }
+  //   }
 
-  }
+  // }
 
-  return n_matches;
+  // return n_matches;
 }
 
 int GuidedMatcher::DescriptorDist(const cv::Mat& a, const cv::Mat& b) {

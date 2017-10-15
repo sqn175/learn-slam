@@ -18,6 +18,10 @@
 * along with ORB-SLAM2. If not, see <http://www.gnu.org/licenses/>.
 */
 
+
+// Modified by ShiQin
+// Date: 2017.10.13
+
 #ifndef OPTIMIZER_H
 #define OPTIMIZER_H
 
