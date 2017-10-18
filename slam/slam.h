@@ -19,12 +19,14 @@
 #include "parameters_reader.h"
 #include "pinhole_camera.h"
 #include "threadsafe_queue.h"
-#include "frame.h"
-#include "keyframe.h"
 #include "frontend.h"
-#include "visualizer.h"
+// #include "visualizer.h"
 
 namespace lslam {
+
+class Map;
+class Frame;
+class KeyFrame;
 
 // SLAM as a system interface 
 class Slam {

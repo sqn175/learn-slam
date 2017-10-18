@@ -11,8 +11,6 @@
 #include <memory>
 
 #include "frame.h"
-#include "landmark.h"
-#include "pinhole_camera.h"
 
 namespace lslam {
 
@@ -30,7 +28,7 @@ public:
     const int radius,const float dist_th, const bool use_ratio_test, const float ratio, const bool check_rotation );
   // 3d-2d matcher
   // Project Landmarks into the current frame, and search matches
-  int ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame, std::vector<std::shared_ptr<Landmark>> landmarks);
+  int ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame, std::vector<std::shared_ptr<MapPoint>> landmarks);
 
   int ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame, std::shared_ptr<Frame> last_frame, const double th, const bool check_ori);
 

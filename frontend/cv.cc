@@ -1,5 +1,6 @@
 #include "cv.h"
 
+#include "frame.h"
 
 namespace lslam {
 

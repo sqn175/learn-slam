@@ -14,12 +14,10 @@
 
 #include <ORBextractor.h>
 #include "pinhole_camera.h"
-#include "landmark.h"
 #include "range_searcher.h"
 
 namespace lslam {
-
-class Landmark;
+class MapPoint;
 
 class Frame{ 
 public:
@@ -28,31 +26,36 @@ public:
   Frame();
   
   Frame(double timestamp, unsigned long id, const cv::Mat& image);
+  // Copy constructor
+  Frame(const Frame& frame);
+  Frame& operator=(const Frame&) = delete;
   
   ~Frame() {
   }
   
   // Function to be called after construction
+  // We pick the function out of construction in case we need a specific thread to perform preprocess
   // 1. Extract ORB feature; 
-  // 2. Undistort keypoints and assign them to grid for fast range searching
+  // 2. Undistortd keypoints and assign them to grid for fast range searching
   // 3. Allocating 
   void PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor>,std::shared_ptr<PinholeCamera>);
 
   // Accessors
+  virtual unsigned long id() const;
   cv::Mat image() const;
   std::vector<cv::KeyPoint> keypoints() const;
   const std::vector<cv::KeyPoint>& undistorted_kps() const;
   const cv::KeyPoint& undistorted_kp(size_t idx) const;
   const cv::Mat& descriptors() const;
-  std::vector<std::shared_ptr<Landmark>> landmarks() const;
+  std::vector<std::shared_ptr<MapPoint>> mappoints() const;
   std::shared_ptr<RangeSearcher> range_searcher() const;
-  std::shared_ptr<Landmark> landmark(size_t idx) const; 
+  std::shared_ptr<MapPoint> mappoint(size_t idx) const; 
   std::shared_ptr<PinholeCamera> camera_model() const;
   std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor() const;
   bool outlier(size_t) const;
 
   void SetPose(cv::Mat T_cw);
-  void set_landmark(size_t idx, std::shared_ptr<Landmark> landmark);
+  void set_mappoint(size_t idx, std::shared_ptr<MapPoint> mappoint);
   void set_T_cl(cv::Mat T_cl);
   void set_outlier(size_t idx, bool flag);
 
@@ -63,7 +66,7 @@ public:
   // Project world coordinate 3d point to image coordinate 3d point
   cv::Mat Project(const cv::Mat pt3d_w);
   
-private:
+protected:
   // === Raw data ===
   double timestamp_; // timestamp of this frame
   unsigned long id_; // id of this frame
@@ -82,8 +85,8 @@ private:
   // === Data evidence ===
 
   // === State ===
-  // Landmarks associated to keypoints, NULL for no association
-  std::vector<std::shared_ptr<Landmark>> landmarks_;
+  // MapPoints associated to keypoints, NULL for no association
+  std::vector<std::shared_ptr<MapPoint>> mappoints_;
   // Flag to identify outlier associations
   std::vector<bool> outliers_; 
   // Camera Pose, cw -> world coordinate to camera coordinate

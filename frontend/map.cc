@@ -4,7 +4,8 @@
  */
 
 #include "map.h"
-
+#include "mappoint.h"
+#include "keyframe.h"
 namespace lslam {
 
 void Map::AddKeyFrame(std::shared_ptr<KeyFrame> keyframe) {
@@ -12,14 +13,19 @@ void Map::AddKeyFrame(std::shared_ptr<KeyFrame> keyframe) {
   keyframes_.insert(keyframe);
 }
 
-void Map::AddLandmarkPoint(std::shared_ptr<Landmark> landmarkpoint) {
+void Map::AddMapPoint(std::shared_ptr<MapPoint> landmarkpoint) {
   std::unique_lock<std::mutex> lock(mutex_);
-  landmarkpoints_.insert(landmarkpoint);
+  mappoints_.insert(landmarkpoint);
 }
 
-size_t Map::SizeOfKeyframe() {
+size_t Map::SizeOfKeyframes() {
   std::unique_lock<std::mutex> lock(mutex_);
   return keyframes_.size();
+}
+
+size_t Map::SizeOfMappoints() {
+  std::unique_lock<std::mutex> lock(mutex_);
+  return mappoints_.size();
 }
 
 std::vector<std::shared_ptr<KeyFrame>> Map::keyframes() {
@@ -27,9 +33,9 @@ std::vector<std::shared_ptr<KeyFrame>> Map::keyframes() {
   return std::vector<std::shared_ptr<KeyFrame>>(keyframes_.begin(),keyframes_.end());
 }
 
-std::vector<std::shared_ptr<Landmark>> Map::landmarkpoints(){
+std::vector<std::shared_ptr<MapPoint>> Map::mappoints(){
   std::unique_lock<std::mutex> lock(mutex_);
-  return std::vector<std::shared_ptr<Landmark>>(landmarkpoints_.begin(),landmarkpoints_.end());
+  return std::vector<std::shared_ptr<MapPoint>>(mappoints_.begin(),mappoints_.end());
 }
 
 } // namespace lslam

@@ -14,6 +14,8 @@
 #include <condition_variable>
 #include <atomic>
 
+#include <glog/logging.h>
+
 namespace lslam {
 
 // Implementation of the multiple producer, multiple consumer 

@@ -14,11 +14,11 @@
 #include <opencv2/core.hpp>
 #include <pangolin/pangolin.h>
 
-#include "frame.h"
 #include "threadsafe_queue.h"
-#include "map.h"
 
 namespace lslam {
+class Map;
+class Frame;
 
 class Visualizer {
 public:

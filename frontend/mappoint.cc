@@ -3,25 +3,38 @@
  * Date: 2017-08-29
  */
 
-#include "landmark.h"
+#include "mappoint.h"
 
+#include "frame.h"
+#include "keyframe.h"
 #include <limits>
 
 namespace lslam {
 
-Landmark::Landmark() {
+// MapPoint::MapPoint() 
+//   : is_bad_(false) {
+//   static unsigned long unique_id = 0;
+//   id_ = unique_id++;
+// }
+
+MapPoint::MapPoint(const cv::Mat& pt_world)
+  : is_bad_(false)
+  , pt_world_(pt_world) {
+
+  static unsigned long unique_id = 0;
+  id_ = unique_id++;
 }
 
-void Landmark::AddObservation(std::shared_ptr<KeyFrame> keyframe, int keypoint_index) {
+void MapPoint::AddObservation(std::shared_ptr<KeyFrame> keyframe, int keypoint_index) {
   // If this keyframe already exists, we insert nothing, else insert
   observations_.insert({keyframe, keypoint_index});
 }
 
-size_t Landmark::ObservationCount() const {
+size_t MapPoint::ObservationCount() const {
   return observations_.size();
 }
 
-void Landmark::ComputeDistinctiveDescriptors() {
+void MapPoint::ComputeDistinctiveDescriptors() {
   
   size_t size = ObservationCount();
   
@@ -29,9 +42,8 @@ void Landmark::ComputeDistinctiveDescriptors() {
   if (size == 0) return;
   std::vector<cv::Mat> all_descriptors;
   all_descriptors.reserve(size);
-  for (auto i = observations_.begin(); i != observations_.end(); ++i) {
-    std::shared_ptr<Frame> cm_i = (*i).first->frame();
-    all_descriptors.push_back(cm_i->descriptors().row((*i).second));
+  for (auto& item:observations_) {
+    all_descriptors.push_back(item.first->descriptors().row(item.second));
   }
   
   // Compute distances between them
@@ -62,7 +74,11 @@ void Landmark::ComputeDistinctiveDescriptors() {
   descriptors_ = all_descriptors[best_idx].clone();
 }
 
-bool Landmark::IsProjectable(std::shared_ptr<Frame> frame, std::shared_ptr<PinholeCamera> camera_model, cv::Mat& p_uv) {
+void MapPoint::UpdateNormalAndDepth() {
+  
+}
+
+bool MapPoint::IsProjectable(std::shared_ptr<Frame> frame, std::shared_ptr<PinholeCamera> camera_model, cv::Mat& p_uv) {
   CHECK(frame) << "frame is Null.";
   CHECK(camera_model) << "camera_model is Null.";
 
@@ -95,17 +111,29 @@ bool Landmark::IsProjectable(std::shared_ptr<Frame> frame, std::shared_ptr<Pinho
   
 }
 
-void Landmark::set_pt_world(const cv::Mat& pt_world) {
+void MapPoint::set_pt_world(const cv::Mat& pt_world) {
   CHECK(pt_world.cols == 1 && pt_world.rows == 3) << "invalid pt_world dimension.";
   pt_world.copyTo(pt_world_);
 }
 
-cv::Mat Landmark::pt_world() const {
+cv::Mat MapPoint::pt_world() const {
   return pt_world_.clone();
 }
 
-cv::Mat Landmark::descriptors() const {
+cv::Mat MapPoint::descriptors() const {
   return descriptors_;
+}
+
+std::map<std::shared_ptr<KeyFrame>, size_t> MapPoint::observations() const {
+  return observations_;
+}
+
+unsigned long MapPoint::id() const {
+  return id_;
+}
+
+bool MapPoint::is_bad() const {
+  return is_bad_;
 }
 
 } // namespace lslam

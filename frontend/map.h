@@ -8,12 +8,13 @@
 
 #include <memory>
 #include <set>
+#include <vector>
 #include <mutex>
 
-#include "keyframe.h"
-#include "landmark.h"
-
 namespace lslam {
+
+class MapPoint;
+class KeyFrame;
 
 // Thread safe map
 class Map {
@@ -22,16 +23,17 @@ public:
   ~Map() { }
   
   void AddKeyFrame(std::shared_ptr<KeyFrame> keyframe);
-  void AddLandmarkPoint(std::shared_ptr<Landmark> landmarkpoint);
+  void AddMapPoint(std::shared_ptr<MapPoint> mappoint);
   
-  size_t SizeOfKeyframe();
+  size_t SizeOfKeyframes();
+  size_t SizeOfMappoints();
   
   std::vector<std::shared_ptr<KeyFrame>> keyframes();
-  std::vector<std::shared_ptr<Landmark>> landmarkpoints();
+  std::vector<std::shared_ptr<MapPoint>> mappoints();
   
 private:
   std::set<std::shared_ptr<KeyFrame>> keyframes_; // all keyframes in the map
-  std::set<std::shared_ptr<Landmark>> landmarkpoints_; // all landmark points in the map
+  std::set<std::shared_ptr<MapPoint>> mappoints_; // all mappoints in the map
 
   std::mutex mutex_;
 };

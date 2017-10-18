@@ -128,7 +128,6 @@ void GuidedMatcher::SetupGuided2D2DMatcher(std::shared_ptr<Frame> init_frame) {
     guided_2d_pts_[i] = undistorted_kps[i].pt;
   }
   init_query_descriptors_ = init_frame->descriptors();
-  std::cout<<init_query_descriptors_.rowRange(0,10)<<std::endl;
 }
 
 int GuidedMatcher::Guided2D2DMatcher(std::shared_ptr<Frame> train_frame, std::vector<cv::DMatch>& matches, 
@@ -217,7 +216,7 @@ int GuidedMatcher::Guided2D2DMatcher(std::shared_ptr<Frame> train_frame, std::ve
   return n_match;
 }
 
-int GuidedMatcher::ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame, std::vector<std::shared_ptr<Landmark>> landmarks) {
+int GuidedMatcher::ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> cur_frame, std::vector<std::shared_ptr<MapPoint>> landmarks) {
   int n_matches = 0;
 
   for (auto& landmark : landmarks) {

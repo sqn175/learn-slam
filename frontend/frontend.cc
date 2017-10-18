@@ -15,6 +15,11 @@
 
 #include "helper.h"
 
+#include "frame.h"
+#include "keyframe.h"
+#include "map.h"
+#include "mappoint.h"
+
 namespace lslam {
 
 Frontend::Frontend() : state_(FrontEndState::kNotInitialized) {
@@ -85,11 +90,11 @@ bool Frontend::DataAssociationBootstrap() {
   last_frame_->SetPose(T_cw_prev);
   
   // Initialize the current camera relative pose
-  cv::Mat T_cw_cur = cv::Mat::eye(4,4,CV_64F);
-  R.copyTo(T_cw_cur.rowRange(0,3).colRange(0,3));
-  t.copyTo(T_cw_cur.rowRange(0,3).col(3));
-  cur_frame_->SetPose(T_cw_cur);
-  cur_frame_->set_T_cl(T_cw_cur*last_frame_->T_wc());
+  cv::Mat T_cw_scaled = cv::Mat::eye(4,4,CV_64F);
+  R.copyTo(T_cw_scaled.rowRange(0,3).colRange(0,3));
+  t.copyTo(T_cw_scaled.rowRange(0,3).col(3));
+  cur_frame_->SetPose(T_cw_scaled);
+  cur_frame_->set_T_cl(T_cw_scaled*last_frame_->T_wc());
 
   // Initial data association
   // We set the initial frame and current frame as keyframe
@@ -104,7 +109,7 @@ bool Frontend::DataAssociationBootstrap() {
   // Create landmarks and asscioate to keyframes
   // Triangulate keypoints to get landmarks
   cv::Mat world_coordinates;
-  cv::triangulatePoints(K*T_cw_prev.rowRange(0,3), K*T_cw_cur.rowRange(0,3), src_points, dst_points, world_coordinates);
+  cv::triangulatePoints(K*T_cw_prev.rowRange(0,3), K*T_cw_scaled.rowRange(0,3), src_points, dst_points, world_coordinates);
   // Convert OpenCV type CV_32F to CV_64F
   world_coordinates.convertTo(world_coordinates, CV_64F);
   for (size_t i = 0; i < src_points.size(); ++i ) {
@@ -140,7 +145,7 @@ bool Frontend::DataAssociationBootstrap() {
 */
 
 bool Frontend::DataAssociationBootstrap() {
-  // Set a initial reference frame
+  // Step1. Set a initial reference frame
   if (!init_frame_) {
     // TUNE: 100
     if (cur_frame_->keypoints().size() >= 100) {
@@ -161,8 +166,9 @@ bool Frontend::DataAssociationBootstrap() {
     return false;
   }
 
-  // Find correspondences
+  // Step2. Find correspondences
   std::vector<cv::DMatch> matches;
+
   int n_match = guided_matcher_.Guided2D2DMatcher(cur_frame_, matches, 100, 50, true, 0.9, true);
 
   // Check if we have enough correspondences
@@ -172,18 +178,104 @@ bool Frontend::DataAssociationBootstrap() {
     return false;
   }
   
-  // Recover pose from correspondences
-  cv::Mat R; // CV_32F
-  cv::Mat t;
-  std::vector<cv::Point3f> points_3d;
-  std::vector<bool> is_triangulated;
-  if (ComputeEgomotion(init_frame_, cur_frame_, matches, R, t, points_3d, is_triangulated)) {
-    std::cout<<"Initialized!";
-    std::cout<<"R:"<<std::endl;
-    std::cout<<R<<std::endl<<t<<std::endl;
-  } else {
+  // Step3. Recover pose from correspondences
+  cv::Mat R_cw; // CV_32F current camera rotation
+  cv::Mat t_cw;
+  std::vector<cv::Point3f> points_3d; // Triangulated points
+  std::vector<bool> is_triangulated;  // Triangulated Correspondences
+  bool initialized = ComputeEgomotion(init_frame_, cur_frame_, matches, R_cw, t_cw, points_3d, is_triangulated);
+  if (!initialized) 
     return false;
+
+  // Step4. Initialize map from recovered pose and triangulated points
+  // Update matches according to triangulation results
+  for (int i = 0; i < matches.size(); ++i) {
+    if (matches[i].trainIdx >= 0 && !is_triangulated[i]) {
+      matches[i].trainIdx = -1;
+      n_match--;
+    }
   }
+
+  // Set frame pose
+  // Wrap R_cw and t_cw to CV_64
+  R_cw.convertTo(R_cw, CV_64F);
+  t_cw.convertTo(t_cw, CV_64F);
+  init_frame_->SetPose(cv::Mat::eye(4,4,CV_64F));
+  cv::Mat T_cw = cv::Mat::eye(4,4,CV_64F);
+  R_cw.copyTo(T_cw.rowRange(0,3).colRange(0,3));
+  t_cw.copyTo(T_cw.rowRange(0,3).col(3));
+  cur_frame_->SetPose(T_cw);
+
+  // Create Map
+  // - Wrap keyframes and insert in the map
+  auto init_keyframe = std::make_shared<KeyFrame>(*init_frame_);
+  auto cur_keyframe = std::make_shared<KeyFrame>(*cur_frame_);
+  map_->AddKeyFrame(init_keyframe);
+  map_->AddKeyFrame(cur_keyframe);
+
+  // - Wrap mappoints and insert in the map
+  for (int i = 0; i < matches.size(); ++i) {
+    if (matches[i].trainIdx < 0)
+      continue;
+    
+    cv::Mat point_3d(points_3d[i]);
+    // Wrap CV_32F to CV_64F
+    point_3d.convertTo(point_3d, CV_64F);
+    auto mappoint = std::make_shared<MapPoint>(point_3d);
+    // Insert in the map
+    map_->AddMapPoint(mappoint);
+
+    // Associate mappoint to frame
+    init_frame_->set_mappoint(matches[i].queryIdx, mappoint);
+    cur_frame_->set_mappoint(matches[i].trainIdx, mappoint);
+
+    init_frame_->set_outlier(matches[i].queryIdx, false);
+    cur_frame_->set_outlier(matches[i].trainIdx, false);
+
+    // Associate mappoint to keyframe
+    init_keyframe->set_mappoint(matches[i].queryIdx, mappoint);
+    cur_keyframe->set_mappoint(matches[i].trainIdx, mappoint);
+
+    init_keyframe->set_outlier(matches[i].queryIdx, false);
+    cur_keyframe->set_outlier(matches[i].trainIdx, false);
+
+    // Associate keyframe to mappoint
+    mappoint->AddObservation(init_keyframe, matches[i].queryIdx);
+    mappoint->AddObservation(cur_keyframe, matches[i].trainIdx);
+
+    mappoint->ComputeDistinctiveDescriptors();
+  }
+
+  // Associate keyframe to keyframe
+  init_keyframe->UpdateConnections();
+  cur_keyframe->UpdateConnections();
+
+  LOG(INFO) << "New Map created with " << map_->SizeOfMappoints() << " points";
+
+  // Bundle Adjustment
+  ORB_SLAM2::Optimizer::GlobalBundleAdjustemnt(map_, 20);
+
+  // Set median depth to 1, and scale
+  float median_depth = init_keyframe->SceneDepth(2);
+  CHECK(median_depth >= 0) << "Wrong initialization.";
+
+  // Scale initial pose
+  cv::Mat T_cw_scaled = cur_keyframe->T_cw();
+  T_cw_scaled.col(3).rowRange(0,3) = T_cw_scaled.col(3).rowRange(0,3) / median_depth;
+  cur_keyframe->SetPose(T_cw_scaled);
+
+  cur_frame_->SetPose(T_cw_scaled);
+
+  // Scale initial mappoints
+  std::vector<std::shared_ptr<MapPoint>> mappoints = init_keyframe->mappoints();
+  for (auto& mp:mappoints) {
+    if (mp) {
+      mp->set_pt_world(mp->pt_world() / median_depth);
+    }
+  }
+
+  return true;
+
 }
 
 void Frontend::DataAssociation() {

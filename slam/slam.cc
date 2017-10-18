@@ -9,6 +9,11 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/core.hpp>
 
+#include "visualizer.h"
+#include "map.h"
+#include "frame.h"
+#include "keyframe.h"
+
 namespace lslam {
 
 Slam::Slam(const std::string config_file) {

@@ -28,13 +28,14 @@
 #include <vector>
 #include <memory>
 
-#include "map.h"
-#include "landmark.h"
-#include "keyframe.h"
-//#include "LoopClosing.h"
-#include "frame.h"
-
 #include "../g2o/g2o/types/types_seven_dof_expmap.h"
+
+namespace lslam {
+    class Frame;
+    class KeyFrame;
+    class MapPoint;
+    class Map;
+}
 
 namespace ORB_SLAM2
 {
@@ -44,11 +45,11 @@ class LoopClosing;
 class Optimizer
 {
 public:
-    // void static BundleAdjustment(const std::vector<KeyFrame*> &vpKF, const std::vector<MapPoint*> &vpMP,
-    //                              int nIterations = 5, bool *pbStopFlag=NULL, const unsigned long nLoopKF=0,
-    //                              const bool bRobust = true);
-    // void static GlobalBundleAdjustemnt(Map* pMap, int nIterations=5, bool *pbStopFlag=NULL,
-    //                                    const unsigned long nLoopKF=0, const bool bRobust = true);
+    void static BundleAdjustment(const std::vector<std::shared_ptr<lslam::KeyFrame>> &vpKF, const std::vector<std::shared_ptr<lslam::MapPoint>> &vpMP,
+                                 int nIterations = 5, bool *pbStopFlag=NULL, const unsigned long nLoopKF=0,
+                                 const bool bRobust = true);
+    void static GlobalBundleAdjustemnt(std::shared_ptr<lslam::Map> pMap, int nIterations=5, bool *pbStopFlag=NULL,
+                                       const unsigned long nLoopKF=0, const bool bRobust = true);
     // void static LocalBundleAdjustment(KeyFrame* pKF, bool *pbStopFlag, Map *pMap);
      int static PoseOptimization(std::shared_ptr<lslam::Frame> pFrame);
 

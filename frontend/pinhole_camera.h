@@ -26,6 +26,10 @@ public:
 
   // Get calibration matrix/intrinsici matrix
   cv::Mat K() const; 
+  double fx() const{ return fx_; }
+  double fy() const{ return fy_; }
+  double cx() const{ return cx_; }
+  double cy() const{ return cy_; }
 
   // Get distortion coefficients
   cv::Mat DistCoeffs() const;

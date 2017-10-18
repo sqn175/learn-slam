@@ -2,28 +2,46 @@
 
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
 
+  <!-- std::shared_ptr from <memory> -->
   <Type Name="std::shared_ptr&lt;*&gt;">  
     <DisplayString Condition="_Myptr == 0">empty</DisplayString>  
-    <DisplayString>shared_ptr {*_Myptr}</DisplayString>  
+    <DisplayString>{{shared_ptr:{*_M_ptr} [use_count:{(*_M_refcount._M_pi)._M_use_count} weak_count:{(*_M_refcount._M_pi)._M_weak_count}]}}</DisplayString>  
     <Expand>  
-      <ExpandedItem>_Myptr</ExpandedItem>  
+      <ExpandedItem>_M_ptr</ExpandedItem>
     </Expand>  
   </Type> 
 
   <Type Name="std::vector&lt;*&gt;">
-      <DisplayString Condition="size==0">b</DisplayString>
-      <DisplayString Condition="size==2">a</DisplayString>
       <DisplayString>{{size={_M_impl._M_finish - _M_impl._M_start}}}</DisplayString>
       <Expand>
-      <Item Name="[size]" ExcludeView="simple">_M_impl._M_finish - _M_impl._M_start</Item>
-            <Item Name="[capacity]" ExcludeView="simple">_M_impl._M_end_of_storage - _M_impl._M_start</Item>
-            <ArrayItems>
-                <Size>_M_impl._M_finish - _M_impl._M_start</Size>
-                <ValuePointer>_M_impl._M_start</ValuePointer>
-            </ArrayItems>
-        </Expand>
+        <Item Name="[size]" ExcludeView="simple">_M_impl._M_finish - _M_impl._M_start</Item>
+        <Item Name="[capacity]" ExcludeView="simple">_M_impl._M_end_of_storage - _M_impl._M_start</Item>
+        <ArrayItems>
+            <Size>_M_impl._M_finish - _M_impl._M_start</Size>
+            <ValuePointer>_M_impl._M_start</ValuePointer>
+        </ArrayItems>
+      </Expand>
   </Type>
 
+  <Type Name="std::map&lt;*&gt;">
+    <AlternativeType Name="std::multimap&lt;*&gt;" />
+    <AlternativeType Name="std::set&lt;*&gt;" />
+    <AlternativeType Name="std::multiset&lt;*&gt;" />
+    <DisplayString>{{ size={_M_t._M_impl._M_node_count} }}</DisplayString>
+    <Expand>
+        <TreeItems>
+            <Size>_M_t._M_impl._M_node_count</Size>
+            <HeadPointer>_M_t._M_impl._M_header._M_parent</HeadPointer>
+            <LeftPointer>_M_t._M_impl._M_header._M_left</LeftPointer>
+            <RightPointer>_M_t._M_impl._M_header._M_right</RightPointer>
+            <ValuePointer>_M_t._M_impl._M_header._M_left</ValuePointer>
+        </TreeItems>
+    </Expand>
+</Type>
+
+  <Type Name="cv::DMatch">
+    <DisplayString>{trainIdx}</DisplayString>
+  </Type>
   <!-- OpenCV natvis Begin-->
   <!-- Ref: https://github.com/cdcseacave/Visual-Studio-Visualizers/blob/master/OpenCV.natvis -->
  

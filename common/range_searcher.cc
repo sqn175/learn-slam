@@ -9,6 +9,10 @@
 
 namespace lslam {
 
+RangeSearcher::RangeSearcher(const std::vector<cv::KeyPoint>& points, const cv::Mat& bounds, int n_points_per_grid) {
+  BuildGrids(points, bounds, n_points_per_grid);
+}
+
 void RangeSearcher::BuildGrids(const std::vector<cv::KeyPoint>& points, const cv::Mat& bounds, int n_points_per_grid) {
   int n_points = points.size();
   int n_grids = std::ceil((double)n_points/(double)n_points_per_grid);

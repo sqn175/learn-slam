@@ -20,6 +20,7 @@ namespace lslam {
 class RangeSearcher{
 public:
   RangeSearcher() {}
+  RangeSearcher(const std::vector<cv::KeyPoint>& points, const cv::Mat& bounds, int n_points_per_grid);
 
   // 
   void BuildGrids(const std::vector<cv::KeyPoint>& points, const cv::Mat& bounds, int n_points_per_grid);

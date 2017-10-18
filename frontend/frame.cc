@@ -4,22 +4,30 @@
  */
 
 #include "frame.h"
+
 #include <iostream>
 #include "my_assert.h"
+#include "mappoint.h"
 
 namespace lslam {
 
 Frame::Frame() {
-  SetPose(cv::Mat::eye(4,4,CV_64F));
-  range_searcher_ = std::make_shared<RangeSearcher>();
 }
 
 Frame::Frame(double timestamp, unsigned long id, const cv::Mat& image)
   : timestamp_(timestamp)
-  , id_(id) {
-  image.copyTo(image_);
-  SetPose(cv::Mat::eye(4,4,CV_64F));
-  range_searcher_ = std::make_shared<RangeSearcher>();
+  , id_(id) 
+  , image_(image.clone()) {
+}
+
+Frame::Frame(const Frame& frame) 
+  : timestamp_(frame.timestamp_), id_(frame.id_), image_(frame.image_.clone())
+  , camera_model_(frame.camera_model_), orb_extractor_(frame.orb_extractor_)
+  , keypoints_(frame.keypoints_), undistorted_kps_(frame.undistorted_kps_), descriptors_(frame.descriptors_.clone())
+  , mappoints_(frame.mappoints_), outliers_(frame.outliers_)
+  , T_cw_(frame.T_cw_.clone()), R_cw_(frame.R_cw_.clone()), t_cw_(frame.t_cw_.clone()), o_w_(frame.o_w_.clone())
+  , T_wc_(frame.T_wc_.clone()), T_cl_(frame.T_cl_.clone())
+  , range_searcher_(frame.range_searcher_) {
 }
 
 void Frame::PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor> extractor,std::shared_ptr<PinholeCamera> camera_model) {
@@ -27,6 +35,7 @@ void Frame::PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor> extractor,std::s
   camera_model_ = camera_model;
   
   // Extract ORB
+  CHECK(image_.data) << "This Frame is not initialized with image";
   (*extractor)(image_, cv::Mat(), keypoints_, descriptors_);
   // Undistort
   if (camera_model->DistortionType().compare("radialtangential") == 0 ) {
@@ -54,16 +63,23 @@ void Frame::PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor> extractor,std::s
     undistorted_kps_ = keypoints_;
   }
 
-  // Build gridding range searcher
-  range_searcher_->BuildGrids(undistorted_kps_, camera_model->image_bounds(), 1);
+  // SetPose
+  SetPose(cv::Mat::eye(4,4,CV_64F));
 
-  // Allocate landmarks
-  landmarks_ = std::vector<std::shared_ptr<Landmark>>(keypoints_.size(), static_cast<std::shared_ptr<Landmark>>(NULL));
+  // Allocate mappoints of NULL
+  mappoints_ = std::vector<std::shared_ptr<MapPoint>>(keypoints_.size(), static_cast<std::shared_ptr<MapPoint>>(NULL));
 
   // Initialize outlier flag
-  outliers_ = std::vector<bool>(landmarks_.size(), false);
+  outliers_ = std::vector<bool>(mappoints_.size(), false);
+
+  // Build gridding range searcher
+  range_searcher_ = std::make_shared<RangeSearcher>(undistorted_kps_, camera_model->image_bounds(), 1);
+  
 }
 
+unsigned long Frame::id() const {
+  return id_;
+}
 cv::Mat Frame::image() const {
   return image_;
 }
@@ -84,8 +100,8 @@ const cv::KeyPoint& Frame::undistorted_kp(size_t idx) const {
   return undistorted_kps_[idx];
 }
 
-std::vector<std::shared_ptr<Landmark>> Frame::landmarks() const {
-  return landmarks_;
+std::vector<std::shared_ptr<MapPoint>> Frame::mappoints() const {
+  return mappoints_;
 }
 
 std::shared_ptr<RangeSearcher> Frame::range_searcher() const {
@@ -117,7 +133,7 @@ void Frame::SetPose(cv::Mat T_cw) {
 }
 
 void Frame::set_T_cl(cv::Mat T_cl) {
-  T_cl_ = T_cl;
+  T_cl_ = T_cl.clone();
 }
 
 void Frame::set_outlier(size_t idx, bool flag) {
@@ -125,25 +141,25 @@ void Frame::set_outlier(size_t idx, bool flag) {
 }
 
 
-void Frame::set_landmark( size_t idx, std::shared_ptr<Landmark> landmark) {
-  landmarks_[idx] = landmark;
+void Frame::set_mappoint( size_t idx, std::shared_ptr<MapPoint> landmark) {
+  mappoints_[idx] = landmark;
 }
 
-std::shared_ptr<Landmark> Frame::landmark(size_t idx) const {
-  return landmarks_[idx];
+std::shared_ptr<MapPoint> Frame::mappoint(size_t idx) const {
+  return mappoints_[idx];
 }
 
 // TODO: consider if we need deep clone?
 cv::Mat Frame::T_cw() const {
-  return T_cw_;
+  return T_cw_.clone();
 }
 
 cv::Mat Frame::T_wc() const {
-  return T_wc_;
+  return T_wc_.clone();
 }
 
 cv::Mat Frame::T_cl() const {
-  return T_cl_;
+  return T_cl_.clone();
 }
 
 cv::Mat Frame::Project(const cv::Mat pt3d_w) {

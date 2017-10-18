@@ -12,7 +12,7 @@ pinhole_camera.cc
 cv.cc
 frame.cc
 frontend.cc
-landmark.cc
+mappoint.cc
 keyframe.cc
 map.cc
 guided_matcher.cc

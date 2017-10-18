@@ -9,6 +9,10 @@
 
 #include <vector>
 
+#include "map.h"
+#include "keyframe.h"
+#include "mappoint.h"
+
 namespace lslam {
 
 Visualizer::Visualizer(ThreadSafeQueue<std::shared_ptr<Frame>>& queue, std::shared_ptr<Map> map)
@@ -43,13 +47,13 @@ void Visualizer::Run() {
 
   // Define Camera Render Object (for view / scene browsing)
   pangolin::OpenGlRenderState s_cam(
-    pangolin::ProjectionMatrix(w,h,400,400,w/2,h/2,0.1,1000),
-    pangolin::ModelViewLookAt(-0.0,-5,-10, 0,0,0, pangolin::AxisNegY)
+    pangolin::ProjectionMatrix(w,h,500,500,512,389,0.1,1000),
+    pangolin::ModelViewLookAt(0.0,-0.7,-1.8, 0,0,0, pangolin::AxisNegY)
     );
 
   // Add named OpenGL viewport to window and provide 3D Handler
   pangolin::View& d_cam = pangolin::CreateDisplay()
-    .SetBounds(0.0, 1.0, pangolin::Attach::Pix(175), 1.0, -w/(float)h)
+    .SetBounds(0.0, 1.0, pangolin::Attach::Pix(175), 1.0, -(double)w/(double)h)
     .SetHandler(new pangolin::Handler3D(s_cam));
 
   std::shared_ptr<Frame> frame;
@@ -135,7 +139,7 @@ void Visualizer::DrawCurrentFrame(pangolin::OpenGlMatrix Twc) {
   double w = 0.08;
   double h = w * 0.75;
   double z = w * 0.6;
-  double line_width = 0.9;
+  double line_width = 3;
 
   glPushMatrix();
   
@@ -170,14 +174,14 @@ void Visualizer::DrawCurrentFrame(pangolin::OpenGlMatrix Twc) {
 }
 
 void Visualizer::DrawKeyFrames() {
-  double w = 0.08;
+  double w = 0.05;
   double h = w * 0.75;
   double z = w * 0.6;
   double KeyFrameLineWidth = 1;
 
   std::vector<std::shared_ptr<KeyFrame>> keyframes = map_->keyframes();
   for (auto& keyframe : keyframes) {
-    cv::Mat T_wc = keyframe->frame()->T_wc();
+    cv::Mat T_wc = keyframe->T_wc().t();
 
     CHECK(!T_wc.empty()) << "Null T_wc";
 
@@ -215,7 +219,7 @@ void Visualizer::DrawKeyFrames() {
 }
 
 void Visualizer::DrawLandmarks() {
-  std::vector<std::shared_ptr<Landmark>> landmarks = map_->landmarkpoints();
+  std::vector<std::shared_ptr<MapPoint>> landmarks = map_->mappoints();
   
   double mPointSize = 2;
   glPointSize(mPointSize);

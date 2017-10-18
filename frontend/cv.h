@@ -12,9 +12,8 @@
 #include <opencv2/core.hpp>
 #include "../3rdparty/ORB_SLAM2_modified/Initializer.h"
 
-#include "frame.h"
-
 namespace lslam {
+class Frame;
 
 // 
 bool ComputeEgomotion(std::shared_ptr<Frame> frame1, std::shared_ptr<Frame> frame2,

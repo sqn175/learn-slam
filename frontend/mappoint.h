@@ -14,8 +14,6 @@
 #include <opencv2/core.hpp>
 #include <opencv2/core/eigen.hpp>
 
-#include "keyframe.h"
-#include "frame.h"
 #include "pinhole_camera.h"
 
 namespace lslam {
@@ -24,11 +22,12 @@ class Frame;
 class KeyFrame;
 
 // TODO: thread safe???
-class Landmark {
+class MapPoint {
 public:
   // Constructor
-  Landmark();
-  ~Landmark() { }
+  // MapPoint();
+  MapPoint(const cv::Mat& pt_world);
+  ~MapPoint() { }
   
   void AddObservation(std::shared_ptr<KeyFrame> keyframe, int keypoint_index);
   
@@ -37,22 +36,29 @@ public:
   
   // Compute the best descriptor associated to this landmark
   void ComputeDistinctiveDescriptors();
-
-  // Check if this landmark is in the frustum of the camera
+  void UpdateNormalAndDepth();
+  // Check if this map is in the frustum of the camera
   bool IsProjectable(std::shared_ptr<Frame> frame, std::shared_ptr<PinholeCamera> camera_model, cv::Mat& uv);
   
   // Mutators
   void set_pt_world(const cv::Mat&);
   // Accessors
+  unsigned long id() const;
   cv::Mat pt_world() const;
   cv::Mat descriptors() const;
+  std::map<std::shared_ptr<KeyFrame>, size_t> observations() const;
+  bool is_bad() const;
   
 private:
-  unsigned int id_; // ID of the landmark point
-  cv::Mat pt_world_; // 3d coordinate of the landmark point in the world map
+  unsigned long id_; // ID of the map point
+  cv::Mat pt_world_; // 3d coordinate of the map point in the world map
   cv::Mat descriptors_; // Best descriptors of this point
   // Keyframes observing the point and the associated keypoint index in keyframe
-  std::map<std::shared_ptr<KeyFrame>, int> observations_; 
+  std::map<std::shared_ptr<KeyFrame>, size_t> observations_; 
+  cv::Mat normal_vector_; // Viewing direction
+
+  //
+  bool is_bad_;
 };
 
 } // namespace lslam
