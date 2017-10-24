@@ -20,7 +20,8 @@
 
 // Modified by ShiQin
 // Date: 2017.10.13
-
+// test
+#include <fstream>
 #include "Initializer.h"
 
 #include "../DBoW2/DUtils/Random.h"
@@ -63,6 +64,14 @@ bool Initializer::Initialize(const vector<cv::KeyPoint> key2, const vector<int> 
         else
             mvbMatched1[i]=false;
     }
+    
+    // Test
+     ofstream myfile;
+     myfile.open("my_matches.txt");
+     for (auto& match : mvMatches12) {
+         myfile<<match.first<<" "<<match.second<<endl;
+     }
+     myfile.close();
 
     const int N = mvMatches12.size();
 

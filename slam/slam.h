@@ -20,13 +20,18 @@
 #include "pinhole_camera.h"
 #include "threadsafe_queue.h"
 #include "frontend.h"
-// #include "visualizer.h"
+#include "visualizer.h"
 
 namespace lslam {
 
 class Map;
 class Frame;
 class KeyFrame;
+
+struct RawData {
+  cv::Mat image;
+  double timestamp;
+};
 
 // SLAM as a system interface 
 class Slam {
@@ -63,9 +68,9 @@ private:
   std::shared_ptr<Map> map_;
   // Queues shared by multi-threads
   // - Camera Measurement input queues
-  ThreadSafeQueue<std::shared_ptr<Frame>> camera_meas_received_;
+  ThreadSafeQueue<RawData> camera_meas_received_;
   // - Tracked result queues, ready to be displayed
-  ThreadSafeQueue<std::shared_ptr<Frame>> camera_meas_visualized_;
+  ThreadSafeQueue<VisualizedData> camera_meas_visualized_;
   // - Keyframes to be optimized
   ThreadSafeQueue<std::shared_ptr<KeyFrame>> keyframes_;
 

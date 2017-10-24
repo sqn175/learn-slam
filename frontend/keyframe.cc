@@ -20,25 +20,18 @@ KeyFrame::KeyFrame(const Frame& frame)
 void KeyFrame::AddConnection(std::shared_ptr<KeyFrame> frame, const int weight) {
   connected_keyframes_weights_[frame] = weight;
   // sort
-  sorted_connected_keyframes_weights_ = FlipMap(connected_keyframes_weights_);
+  // sort
+  auto sorted_connected_keyframes_weights_ = FlipMap(connected_keyframes_weights_);
+  for(auto it = sorted_connected_keyframes_weights_.rbegin(); it != sorted_connected_keyframes_weights_.rend(); ++it) {
+    sorted_connected_keyframes_.push_back(it->second);
+  }
 }
 
-void KeyFrame::UpdateConnections() {
-  std::map<std::shared_ptr<KeyFrame>, int> all_connected_keyframes_weights;
+void KeyFrame::ConnectToMap() {
   connected_keyframes_weights_.clear();
-  sorted_connected_keyframes_weights_.clear();
-  // Iterate the mappoints associated to this keyframe, check in which other keyframes are they seen
-  for (auto& mp : mappoints_) {
-    if (!mp)
-      continue;
-    
-    std::map<std::shared_ptr<KeyFrame>, size_t> observations = mp->observations();
-    for (auto& ob : observations) {
-      if (ob.first->id() == id_)
-        continue;
-        all_connected_keyframes_weights[ob.first]++;
-    }
-  }
+  sorted_connected_keyframes_.clear();
+  
+  Frame::ConnectToMap();
 
   // If the weight is greater than threshold, we add connection
   // In case no keyframe counter is over threshold add the one with maximum weight
@@ -47,7 +40,7 @@ void KeyFrame::UpdateConnections() {
   // TUNE: 15
   int th = 15;
 
-  for (auto& item : all_connected_keyframes_weights) {
+  for (auto& item : direct_connected_keyframes_weights_) {
     if (item.second > max_weight) {
       max_weight = item.second;
       max_weight_keyframe = item.first;
@@ -64,7 +57,10 @@ void KeyFrame::UpdateConnections() {
   }
 
   // sort
-  sorted_connected_keyframes_weights_ = FlipMap(connected_keyframes_weights_);
+  auto sorted_connected_keyframes_weights_ = FlipMap(connected_keyframes_weights_);
+  for(auto it = sorted_connected_keyframes_weights_.rbegin(); it != sorted_connected_keyframes_weights_.rend(); ++it) {
+    sorted_connected_keyframes_.push_back(it->second);
+  }
 
   // Spanning tree
   if (is_new_nod_ && sorted_connected_keyframes_weights_.rbegin() != sorted_connected_keyframes_weights_.rbegin()) {
@@ -91,6 +87,21 @@ unsigned long KeyFrame::frame_id() const {
 
 bool KeyFrame::is_bad() const {
   return is_bad_;
+}
+
+std::set<std::shared_ptr<KeyFrame>> KeyFrame::children_keyframes() {
+  return children_keyframes_;
+}
+
+std::shared_ptr<KeyFrame> KeyFrame::parent_keyframe() {
+  return parent_keyframe_;
+}
+std::vector<std::shared_ptr<KeyFrame>> KeyFrame::GetConnectedKeyFrames(const size_t n) {
+  if ( n == 0 || n > sorted_connected_keyframes_.size()) {
+    return sorted_connected_keyframes_;
+  } else {
+    return std::vector<std::shared_ptr<KeyFrame>>(sorted_connected_keyframes_.begin(), sorted_connected_keyframes_.begin()+n);
+  }
 }
 
 double KeyFrame::SceneDepth(const int q){

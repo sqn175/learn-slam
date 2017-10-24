@@ -15,7 +15,7 @@
 
 namespace lslam {
 
-Visualizer::Visualizer(ThreadSafeQueue<std::shared_ptr<Frame>>& queue, std::shared_ptr<Map> map)
+Visualizer::Visualizer(ThreadSafeQueue<VisualizedData>& queue, std::shared_ptr<Map> map)
   : frame_queue_(queue)
   , map_(map){
 
@@ -56,25 +56,24 @@ void Visualizer::Run() {
     .SetBounds(0.0, 1.0, pangolin::Attach::Pix(175), 1.0, -(double)w/(double)h)
     .SetHandler(new pangolin::Handler3D(s_cam));
 
-  std::shared_ptr<Frame> frame;
+  VisualizedData vis;
   pangolin::OpenGlMatrix T_wc;
   T_wc.SetIdentity();
 
   while (!pangolin::ShouldQuit()) {
-    if (frame_queue_.PopBlocking(&frame) == false)
+    if (frame_queue_.PopBlocking(&vis) == false)
       return;
 
     // OpenCv image display
     // Show current frame
-    cv::Mat visualized_im = DrawFrame(frame);
-    cv::imshow(window_name, visualized_im);
+    cv::imshow(window_name, vis.image);
     cv::waitKey(1);
 
     // Clear entire screen
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     // Show current camera pose
-    T_wc = GetCurrentOpenGlCameraMatrix(frame);
+    T_wc = GetCurrentOpenGlCameraMatrix(vis.frame);
     if (this->settings_followcamera) {
       s_cam.Follow(T_wc);
     } 
@@ -235,27 +234,6 @@ void Visualizer::DrawLandmarks() {
   glEnd();
 }
 
-cv::Mat Visualizer::DrawFrame(std::shared_ptr<Frame> camera_meas) {
-  cv::Mat im = camera_meas->image();
-  // Convert grayscale image to BGR image
-  cv::cvtColor(im, im, CV_GRAY2BGR);
-
-  std::vector<cv::KeyPoint> kps = camera_meas->keypoints();
-
-  const double r = 5;
-  const int size = kps.size();
-  for (int i = 0; i < size; ++i) {
-    cv::Point2d pt1, pt2;
-    pt1.x = kps[i].pt.x - r;
-    pt1.y = kps[i].pt.y - r;
-    pt2.x = kps[i].pt.x + r;
-    pt2.y = kps[i].pt.y + r;
-
-    cv::rectangle(im, pt1, pt2, cv::Scalar(0,255,0));
-  }
-
-  return im;
-}
 
 } // namespace LSLAM
   

@@ -5,38 +5,36 @@
 
 #include "frame.h"
 
+#include <glog/logging.h>
+#include "../3rdparty/ORB_SLAM2_modified/Converter.h"
+
 #include <iostream>
 #include "my_assert.h"
 #include "mappoint.h"
+#include "keyframe.h"
 
 namespace lslam {
-
+typedef DBoW2::TemplatedVocabulary<DBoW2::FORB::TDescriptor, DBoW2::FORB> ORBVocabulary;
+  
 Frame::Frame() {
 }
 
-Frame::Frame(double timestamp, unsigned long id, const cv::Mat& image)
+Frame::Frame(const cv::Mat& image,double timestamp, 
+             std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor,
+             std::shared_ptr<PinholeCamera> camera_model,
+             std::shared_ptr<ORBVocabulary> orb_voc)
   : timestamp_(timestamp)
-  , id_(id) 
-  , image_(image.clone()) {
-}
-
-Frame::Frame(const Frame& frame) 
-  : timestamp_(frame.timestamp_), id_(frame.id_), image_(frame.image_.clone())
-  , camera_model_(frame.camera_model_), orb_extractor_(frame.orb_extractor_)
-  , keypoints_(frame.keypoints_), undistorted_kps_(frame.undistorted_kps_), descriptors_(frame.descriptors_.clone())
-  , mappoints_(frame.mappoints_), outliers_(frame.outliers_)
-  , T_cw_(frame.T_cw_.clone()), R_cw_(frame.R_cw_.clone()), t_cw_(frame.t_cw_.clone()), o_w_(frame.o_w_.clone())
-  , T_wc_(frame.T_wc_.clone()), T_cl_(frame.T_cl_.clone())
-  , range_searcher_(frame.range_searcher_) {
-}
-
-void Frame::PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor> extractor,std::shared_ptr<PinholeCamera> camera_model) {
-  orb_extractor_ = extractor;
-  camera_model_ = camera_model;
+  , orb_extractor_(orb_extractor)
+  , camera_model_(camera_model)
+  , orb_voc_(orb_voc)
+{
+  static unsigned long unique_id = 0;
+  id_ = unique_id++;
   
   // Extract ORB
-  CHECK(image_.data) << "This Frame is not initialized with image";
-  (*extractor)(image_, cv::Mat(), keypoints_, descriptors_);
+  CHECK(image.data) << "This Frame is not initialized with image";
+  (*orb_extractor_)(image, cv::Mat(), keypoints_, descriptors_);
+  
   // Undistort
   if (camera_model->DistortionType().compare("radialtangential") == 0 ) {
     cv::Mat mat(keypoints_.size(), 2, CV_32F);
@@ -72,20 +70,32 @@ void Frame::PreProcess(std::shared_ptr<ORB_SLAM2::ORBextractor> extractor,std::s
   // Initialize outlier flag
   outliers_ = std::vector<bool>(mappoints_.size(), false);
 
-  // Build gridding range searcher
+  // Build gridding range searcher TODO: consider if we need to build grid at the first time
   range_searcher_ = std::make_shared<RangeSearcher>(undistorted_kps_, camera_model->image_bounds(), 1);
-  
+}
+
+Frame::Frame(const Frame& frame) 
+  : timestamp_(frame.timestamp_), id_(frame.id_)
+  , camera_model_(frame.camera_model_), orb_extractor_(frame.orb_extractor_), orb_voc_(frame.orb_voc_)
+  , keypoints_(frame.keypoints_), undistorted_kps_(frame.undistorted_kps_), descriptors_(frame.descriptors_.clone())
+  , mappoints_(frame.mappoints_), outliers_(frame.outliers_)
+  , T_cw_(frame.T_cw_.clone()), R_cw_(frame.R_cw_.clone()), t_cw_(frame.t_cw_.clone()), o_w_(frame.o_w_.clone())
+  , T_wc_(frame.T_wc_.clone()), T_cl_(frame.T_cl_.clone())
+  , direct_connected_keyframes_weights_(frame.direct_connected_keyframes_weights_)
+  , connected_mappoints_(frame.connected_mappoints_)
+  , range_searcher_(frame.range_searcher_) {
 }
 
 unsigned long Frame::id() const {
   return id_;
 }
-cv::Mat Frame::image() const {
-  return image_;
-}
 
 std::vector<cv::KeyPoint> Frame::keypoints() const {
   return keypoints_;
+}
+
+const cv::KeyPoint& Frame::keypoint(size_t idx) const {
+  return keypoints_[idx];
 }
 
 const std::vector<cv::KeyPoint>& Frame::undistorted_kps() const {
@@ -118,6 +128,17 @@ std::shared_ptr<ORB_SLAM2::ORBextractor> Frame::orb_extractor() const {
 
 bool Frame::outlier(size_t idx) const {
   return outliers_[idx];
+}
+
+const DBoW2::BowVector& Frame::bow_vector() const {
+  return bow_vector_;
+}
+const DBoW2::FeatureVector& Frame::feature_vector() const {
+  return feature_vector_;
+}
+
+std::set<std::shared_ptr<MapPoint>> Frame::connected_mappoints() const {
+  return connected_mappoints_;
 }
 
 void Frame::SetPose(cv::Mat T_cw) {
@@ -162,11 +183,95 @@ cv::Mat Frame::T_cl() const {
   return T_cl_.clone();
 }
 
+cv::Mat Frame::o_w() const {
+  return o_w_.clone();
+}
+
 cv::Mat Frame::Project(const cv::Mat pt3d_w) {
   CHECK(pt3d_w.cols == 1 && pt3d_w.rows == 3) << "Invalid 3d point.";
   CHECK(T_cw_.data) << "The pose of frame is NOT set.";
   cv::Mat p_c = R_cw_*pt3d_w + t_cw_;
   return p_c;
+}
+
+void Frame::ComputeBoW() {
+  if (bow_vector_.empty() || feature_vector_.empty()) {
+    CHECK(descriptors_.data);
+    std::vector<cv::Mat> desc_mat = ORB_SLAM2::Converter::toDescriptorVector(descriptors_);
+    orb_voc_->transform(desc_mat, bow_vector_, feature_vector_, 4);
+  }
+}
+
+void Frame::ConnectToMap() {
+  // Iterate the mappoints associated to this keyframe, check in which other keyframes are they seen
+  direct_connected_keyframes_weights_.clear();
+  for (auto& mp : mappoints_) {
+    if (!mp)
+      continue;
+    
+    // TODO: why I need to check is_bad  
+    if (!mp->is_bad()) {
+      auto observations = mp->observations();
+      for (auto& ob : observations) {
+        // This observation keyframe is created from this frame
+        if (ob.first->frame_id() == id_ )
+          continue;
+        direct_connected_keyframes_weights_[ob.first]++;
+      }
+    } else {
+      mp.reset();
+    }
+  }
+
+  std::set<std::shared_ptr<KeyFrame>> all_connected_keyframes;
+  // Consider the neighbors of these direct connected keyframes
+  for (auto& kf_w : direct_connected_keyframes_weights_) {
+    auto kf = kf_w.first;
+    if (kf->is_bad())
+      continue;
+
+    all_connected_keyframes.insert(kf);
+    // TUNE: 10
+    auto neighbors_of_kf = kf->GetConnectedKeyFrames(10);
+    for (auto& neighbor : neighbors_of_kf) {
+      if (neighbor->is_bad() || neighbor->frame_id() == id_)
+        continue;
+
+      all_connected_keyframes.insert(neighbor);
+      // TODO: ORB_SLAM2 have a break here, it only accept the best first one, the following loops is the same
+    }
+
+    auto children_of_kf = kf->children_keyframes();
+    for(auto& child : children_of_kf) {
+      if (child->is_bad() || child->frame_id() == id_)
+        continue;
+
+      all_connected_keyframes.insert(child);
+    }
+
+    auto parent_of_kf = kf->parent_keyframe();
+    if (parent_of_kf && !(parent_of_kf->is_bad() || parent_of_kf->frame_id() == id_)) {
+      all_connected_keyframes.insert(parent_of_kf);
+    }
+  }
+
+  // Retrive all mappoints from all connected keyframes
+  connected_mappoints_.clear();
+  for(auto& kf : all_connected_keyframes) {
+    auto mps_of_kf = kf->mappoints();
+    for(auto& mp : mps_of_kf) {
+      if (!mp || mp->is_bad()) 
+        continue;
+
+      connected_mappoints_.insert(mp);
+     }
+  }
+  // We erase the mappoints already associated to keypoints 
+  // in the previous TrackToLastFrame or TrackToLastKeyFrame functions
+  for (auto& mp:mappoints_) {
+    if (mp) 
+      connected_mappoints_.erase(mp);
+  }
 }
 
 } // namespace lslam

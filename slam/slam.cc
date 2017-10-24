@@ -47,26 +47,29 @@ bool Slam::AddMonoImage(const cv::Mat &image, const double &timestamp) {
     LOG(ERROR) << "Received image timestamp from past.";
     return false;
   }
-  last_added_camerameas_time_ = timestamp;
-  last_added_camerameas_id_ += 1;
+  RawData input_data = {image, timestamp};
   
-  // Wrap image to Frame
-  auto camera_meas = std::make_shared<Frame>(timestamp, last_added_camerameas_id_, image);
-  camera_meas_received_.PushBlockingIfFull(camera_meas, 1);
+  camera_meas_received_.PushBlockingIfFull(input_data, 1);
 } 
 
 void Slam::FrameConsumerLoop() {
-  std::shared_ptr<Frame> camera_meas;
+  RawData input_data;
+  VisualizedData vis;
+  cv::Mat im;
+  std::shared_ptr<Frame> frame;
   while (true) {
     // Get data from queue, and check for termination check
-    if (camera_meas_received_.PopBlocking(&camera_meas) == false)
+    if (camera_meas_received_.PopBlocking(&input_data) == false)
       return;
 
     // Feed to frontend
-    frontend_.Process(camera_meas);
+    frontend_.Process(input_data.image, input_data.timestamp);
+    frontend_.PublishVisualization(im, frame);
 
+    vis.frame = frame;
+    vis.image = im;
     // We get the current camera pose, push to the visualization_queue
-    camera_meas_visualized_.PushBlockingIfFull(camera_meas, 1);
+    camera_meas_visualized_.PushBlockingIfFull(vis, 1);
   }
 }
 

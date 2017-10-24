@@ -33,6 +33,7 @@ public:
   
 private:
   std::set<std::shared_ptr<KeyFrame>> keyframes_; // all keyframes in the map
+  // TODO: consider do we need mappoints_ as member
   std::set<std::shared_ptr<MapPoint>> mappoints_; // all mappoints in the map
 
   std::mutex mutex_;

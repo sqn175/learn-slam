@@ -26,7 +26,7 @@ class MapPoint {
 public:
   // Constructor
   // MapPoint();
-  MapPoint(const cv::Mat& pt_world);
+  MapPoint(const cv::Mat& pt_world, std::shared_ptr<KeyFrame> ref_kf);
   ~MapPoint() { }
   
   void AddObservation(std::shared_ptr<KeyFrame> keyframe, int keypoint_index);
@@ -36,9 +36,13 @@ public:
   
   // Compute the best descriptor associated to this landmark
   void ComputeDistinctiveDescriptors();
+
+  // Called after setting pt_world or reference_keyframe's o_w_
   void UpdateNormalAndDepth();
+
+  int PredictOctaveInFrame(std::shared_ptr<Frame> frame, const double& dist);
   // Check if this map is in the frustum of the camera
-  bool IsProjectable(std::shared_ptr<Frame> frame, std::shared_ptr<PinholeCamera> camera_model, cv::Mat& uv);
+  bool IsProjectable(std::shared_ptr<Frame> frame, cv::Mat& uv, int& scale, double& view_cosine);
   
   // Mutators
   void set_pt_world(const cv::Mat&);
@@ -56,6 +60,13 @@ private:
   // Keyframes observing the point and the associated keypoint index in keyframe
   std::map<std::shared_ptr<KeyFrame>, size_t> observations_; 
   cv::Mat normal_vector_; // Viewing direction
+
+  // Reference keyframe, from which the mappoint is created(by triangulation)
+  std::shared_ptr<KeyFrame> ref_keyframe_;
+  // scale invariance distance
+  double max_distance_; 
+  double min_distance_;
+
 
   //
   bool is_bad_;

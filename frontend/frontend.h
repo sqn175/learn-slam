@@ -10,17 +10,22 @@
 #include <opencv2/calib3d.hpp>
 #include <glog/logging.h>
 
-#include <Optimizer.h>
+#include "../3rdparty/ORB_SLAM2_modified/ORBextractor.h"
+#include "../3rdparty/DBoW2/DBoW2/FORB.h"
+#include "../3rdparty/DBoW2/DBoW2/TemplatedVocabulary.h"
 
 #include "pinhole_camera.h"
 #include "parameters_reader.h"
 #include "guided_matcher.h"
 #include "cv.h"
+#include "helper.h"
 
 namespace lslam {
   
+typedef DBoW2::TemplatedVocabulary<DBoW2::FORB::TDescriptor, DBoW2::FORB> ORBVocabulary;
 class Map;
 class Frame;
+class KeyFrame;
 
 class Frontend{
 public:
@@ -37,13 +42,17 @@ public:
   
   void init(const ParametersReader&);
   
-  void Process(std::shared_ptr<Frame> camera_measurement_current);
+  void Process(cv::Mat image, double timestamp);
+  //void Process(std::shared_ptr<Frame> camera_measurement_current);
   
   // Accessors
   PinholeCamera camera_model() const;
   // Setters
   void set_map(std::shared_ptr<Map> map);
   void set_camera_model(std::shared_ptr<PinholeCamera> camera_model);
+  
+  // For visualization
+  void PublishVisualization(cv::Mat& im, std::shared_ptr<Frame>& frame);
 
 private:
   // Initial data association to create initial 3D map when we have a initial camera pose
@@ -53,6 +62,10 @@ private:
 
   // Initial pose estimation from previous frame
   bool TrackToLastFrame();
+  bool TrackToLastKeyFrame();
+
+  // 
+  bool TrackToLocalMap();
 private:
   
   std::shared_ptr<Map> map_; 
@@ -62,6 +75,8 @@ private:
 
   // ORB extractor to detect and describe features
   std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor_;
+  // ORB Vocabulary
+  std::shared_ptr<ORBVocabulary> orb_voc_;
   
   FrontEndState state_;  // frontend state
   
@@ -71,8 +86,16 @@ private:
 
   std::shared_ptr<Frame> init_frame_; // Initial frame used for initialization
   
+  // Visualized Data
+  cv::Mat image_;
+  
   // Guided matcher
   GuidedMatcher guided_matcher_;
+
+  //
+  std::shared_ptr<KeyFrame> reference_keyframe_;
+
+  // Associated local 
 };
 
 } // namespace lslam

@@ -47,5 +47,6 @@
         "bitset": "cpp",
         "vector": "cpp",
         "valarray": "cpp"
-    }
+    },
+    "window.zoomLevel": -2
 }

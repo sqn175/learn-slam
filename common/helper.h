@@ -13,7 +13,7 @@
 #include <opencv2/core.hpp>
 
 namespace lslam {
-
+    
 template<typename A, typename B>
 std::pair<B,A> FlipPair(const std::pair<A,B> &p)
 {
@@ -28,6 +28,25 @@ std::multimap<B,A> FlipMap(const std::map<A,B> &src)
     std::transform(src.begin(), src.end(), std::inserter(dst, dst.begin()), 
                     FlipPair<A,B>);
     return dst;
+}
+
+/// Performs a binary search for an element
+///
+/// The range `[first, last)` must be ordered via `comparer`.  If `value` is
+/// found in the range, an iterator to the first element comparing equal to
+/// `value` will be returned; if `value` is not found in the range, `last` is
+/// returned.
+template <typename RandomAccessIterator, typename Value, typename Comparer=std::less<Value>>
+auto binary_search(RandomAccessIterator const  first,
+                   RandomAccessIterator const  last,
+                   Value                const& value,
+                   Comparer                    comparer={}) -> RandomAccessIterator
+{
+    RandomAccessIterator it(std::lower_bound(first, last, value, comparer));
+    if (it == last || comparer(*it, value) || comparer(value, *it))
+        return last;
+
+    return it;
 }
 
 } // namespace LSLAM

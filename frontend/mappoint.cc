@@ -17,9 +17,10 @@ namespace lslam {
 //   id_ = unique_id++;
 // }
 
-MapPoint::MapPoint(const cv::Mat& pt_world)
+MapPoint::MapPoint(const cv::Mat& pt_world, std::shared_ptr<KeyFrame> ref_kf)
   : is_bad_(false)
-  , pt_world_(pt_world) {
+  , pt_world_(pt_world) 
+  , ref_keyframe_(ref_kf) {
 
   static unsigned long unique_id = 0;
   id_ = unique_id++;
@@ -74,13 +75,57 @@ void MapPoint::ComputeDistinctiveDescriptors() {
   descriptors_ = all_descriptors[best_idx].clone();
 }
 
+// Distance invariance 
+//              ____
+// Nearer      /____\     level:n-1 --> dmin
+//            /______\                       d/dmin = 1.2^(n-1-m)
+//           /________\   level:m   --> d
+//          /__________\                     dmax/d = 1.2^m
+// Farther /____________\ level:0   --> dmax
+//
+//           log(dmax/d)
+// m = ceil(------------)
+//            log(1.2)
 void MapPoint::UpdateNormalAndDepth() {
-  
+  cv::Mat normal = cv::Mat::zeros(3,1,CV_64F);
+  int i = 0;
+  for (auto& ob : observations_) {
+    auto keyframe = ob.first;
+    cv::Mat n = pt_world_ - keyframe->o_w();
+    normal = normal + n/cv::norm(n);
+    ++i;
+  }
+  // Update normal vector
+  normal_vector_ = normal / i;
+
+  cv::Mat n_ref = pt_world_ - ref_keyframe_->o_w();
+  double dist = cv::norm(n_ref);
+  int level = ref_keyframe_->undistorted_kp(observations_[ref_keyframe_]).octave;
+  auto level_scale_factors = ref_keyframe_->orb_extractor()->GetScaleFactors();
+  double level_scale_factor = level_scale_factors[level];
+  int n_level = ref_keyframe_->orb_extractor()->GetLevels();
+  // Update distance
+  max_distance_ = dist * level_scale_factor;
+  min_distance_ = max_distance_ / level_scale_factors[n_level-1];
 }
 
-bool MapPoint::IsProjectable(std::shared_ptr<Frame> frame, std::shared_ptr<PinholeCamera> camera_model, cv::Mat& p_uv) {
+int MapPoint::PredictOctaveInFrame(std::shared_ptr<Frame> frame, const double& dist) {
+  double log_scale_factor = frame->orb_extractor()->GetScaleFactor();
+  int octave = std::ceil(std::log(max_distance_/dist) / std::log(log_scale_factor));
+  if (octave < 0) {
+    octave = 0;
+  } else if (octave >= frame->orb_extractor()->GetLevels()) {
+    octave = frame->orb_extractor()->GetLevels() - 1;
+  }
+  return octave;
+}
+
+bool MapPoint::IsProjectable(std::shared_ptr<Frame> frame, cv::Mat& p_uv, int& octave, double& view_cosine) {
   CHECK(frame) << "frame is Null.";
+  auto camera_model = frame->camera_model();
   CHECK(camera_model) << "camera_model is Null.";
+
+  p_uv.release();
 
   if (!frame->T_cw().data) {
     LOG(ERROR) << "The pose of frame is NOT set.";
@@ -106,6 +151,21 @@ bool MapPoint::IsProjectable(std::shared_ptr<Frame> frame, std::shared_ptr<Pinho
   if (u < min_u || u > max_u || v < min_v || v > max_v)
     return false;
 
+  // Check distance is in the scale invariance region
+  cv::Mat n = pt_world_ - frame->o_w();
+  double dist = cv::norm(n);
+  // TUNE: 
+  if (dist < 0.8*min_distance_ || dist > 1.2*max_distance_)
+    return false;
+
+  // Check viewing angle > 60 degree
+  view_cosine = n.dot(normal_vector_)/dist;
+  // TUNE: view_cosine_limit 0.5
+  if (view_cosine < 0.5) 
+    return false;
+
+  octave = PredictOctaveInFrame(frame, dist);
+
   return true;
   
   
@@ -121,7 +181,7 @@ cv::Mat MapPoint::pt_world() const {
 }
 
 cv::Mat MapPoint::descriptors() const {
-  return descriptors_;
+  return descriptors_.clone();
 }
 
 std::map<std::shared_ptr<KeyFrame>, size_t> MapPoint::observations() const {

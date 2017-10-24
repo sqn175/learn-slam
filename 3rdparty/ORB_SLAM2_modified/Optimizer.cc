@@ -116,7 +116,6 @@ void Optimizer::BundleAdjustment(const std::vector<std::shared_ptr<lslam::KeyFra
         //SET EDGES
         for(auto mit=observations.begin(); mit!=observations.end(); mit++)
         {
-
             std::shared_ptr<lslam::KeyFrame> pKF = mit->first;
             if(pKF->is_bad() || pKF->id()>maxKFid)
                 continue;
@@ -205,7 +204,7 @@ void Optimizer::BundleAdjustment(const std::vector<std::shared_ptr<lslam::KeyFra
         if(nLoopKF==0)
         {
             pMP->set_pt_world(Converter::toCvMat(vPoint->estimate()));
-            // pMP->UpdateNormalAndDepth();
+            pMP->UpdateNormalAndDepth();
         }
         // else
         // {

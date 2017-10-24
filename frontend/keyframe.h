@@ -26,11 +26,14 @@ public:
   unsigned long id() const;
   unsigned long frame_id() const;
   bool is_bad() const;
-
+  std::set<std::shared_ptr<KeyFrame>> children_keyframes();
+  std::shared_ptr<KeyFrame> parent_keyframe();
+  
   // Connection functions
   void AddConnection(std::shared_ptr<KeyFrame> frame, const int weight);
-  void UpdateConnections();
+  void ConnectToMap();
   void AddChild(std::shared_ptr<KeyFrame> child);
+  std::vector<std::shared_ptr<KeyFrame>> GetConnectedKeyFrames(const size_t n = 0);
 
   // Compute Scene depth
   double SceneDepth(const int q);
@@ -41,7 +44,7 @@ private:
   // Connections to other keyframes
   // - Covisibility graph
   std::map<std::shared_ptr<KeyFrame>, int> connected_keyframes_weights_;
-  std::multimap<int, std::shared_ptr<KeyFrame>> sorted_connected_keyframes_weights_;
+  std::vector<std::shared_ptr<KeyFrame>> sorted_connected_keyframes_; // sorted according to weights descending
   // Spanning tree
   bool is_new_nod_;
   std::shared_ptr<KeyFrame> parent_keyframe_;

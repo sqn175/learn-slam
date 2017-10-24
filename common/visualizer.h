@@ -20,9 +20,14 @@ namespace lslam {
 class Map;
 class Frame;
 
+struct VisualizedData {
+  cv::Mat image;
+  std::shared_ptr<Frame> frame;
+};
+
 class Visualizer {
 public:
-  Visualizer(ThreadSafeQueue<std::shared_ptr<Frame>>& queue, std::shared_ptr<Map> map);
+  Visualizer(ThreadSafeQueue<VisualizedData>& queue, std::shared_ptr<Map> map);
 
   void Run();
 
@@ -32,13 +37,11 @@ public:
   pangolin::OpenGlMatrix GetCurrentOpenGlCameraMatrix(std::shared_ptr<Frame> cur_frame);
 
   void DrawCurrentFrame(pangolin::OpenGlMatrix);
-  
-  cv::Mat DrawFrame(std::shared_ptr<Frame>);
 private:
   std::shared_ptr<Map> map_; // Thread_safe map to be drawn
 
   // A reference of camera_meas_visualized_
-  ThreadSafeQueue<std::shared_ptr<Frame>>& frame_queue_;
+  ThreadSafeQueue<VisualizedData>& frame_queue_;
   
   // render settings
   bool settings_followcamera;

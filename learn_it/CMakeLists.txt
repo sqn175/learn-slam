@@ -35,3 +35,5 @@ project(learn_it)
     common
     slam
     )
+
+  add_executable(testdebug test.cc)

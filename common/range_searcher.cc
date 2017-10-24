@@ -33,7 +33,7 @@ void RangeSearcher::BuildGrids(const std::vector<cv::KeyPoint>& points, const cv
                 grids_rows_, std::vector<std::vector<size_t>>
                 (grids_cols_, std::vector<size_t>()));
   // Assign points to grids
-  for (int i = 0; i < n_points; ++i) {
+  for (size_t i = 0; i < n_points; ++i) {
     const cv::KeyPoint &kp = points[i];
     int grid_col = std::round( (kp.pt.x-min_x_)*grid_size_inv_ );
     int grid_row = std::round( (kp.pt.y-min_y_)*grid_size_inv_ );
