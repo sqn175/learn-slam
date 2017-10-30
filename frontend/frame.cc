@@ -187,6 +187,13 @@ cv::Mat Frame::o_w() const {
   return o_w_.clone();
 }
 
+cv::Mat Frame::R_cw() const {
+  return R_cw_.clone();
+}
+cv::Mat Frame::t_cw() const {
+  return t_cw_.clone();
+}
+
 cv::Mat Frame::Project(const cv::Mat pt3d_w) {
   CHECK(pt3d_w.cols == 1 && pt3d_w.rows == 3) << "Invalid 3d point.";
   CHECK(T_cw_.data) << "The pose of frame is NOT set.";

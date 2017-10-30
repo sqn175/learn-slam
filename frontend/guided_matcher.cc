@@ -2,7 +2,7 @@
  * @Author: Shi Qin 
  * @Date: 2017-09-25 15:19:52 
  * @Last Modified by: Shi Qin
- * @Last Modified time: 2017-09-26 21:01:20
+ * @Last Modified time: 2017-10-25 20:18:11
  */
 #include "guided_matcher.h"
 
@@ -16,7 +16,9 @@
 
 #include "helper.h"
 #include "frame.h"
+#include "keyframe.h"
 #include "mappoint.h"
+#include "cv.h"
 
 namespace lslam
 {
@@ -24,14 +26,11 @@ namespace lslam
 const int GuidedMatcher::TH_HIGH = 100;
 const int GuidedMatcher::TH_LOW = 50;
 
-void GuidedMatcher::set_camera_model(std::shared_ptr<PinholeCamera> camera_model)
-{
-  camera_model_ = camera_model;
-}
+GuidedMatcher::GuidedMatcher(std::shared_ptr<PinholeCamera> camera_model,
+                             std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor) 
+  : camera_model_(camera_model)
+  , orb_extractor_(orb_extractor) {
 
-void GuidedMatcher::set_orb_extractor(std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor)
-{
-  orb_extractor_ = orb_extractor;
   scale_levels_ = orb_extractor->GetLevels();
   scale_factor_ = orb_extractor->GetScaleFactor();
   log_scale_factor_ = std::log(scale_factor_);
@@ -39,7 +38,7 @@ void GuidedMatcher::set_orb_extractor(std::shared_ptr<ORB_SLAM2::ORBextractor> o
   inv_scale_factors_ = orb_extractor->GetInverseScaleFactors();
   level_sigma2_ = orb_extractor->GetScaleSigmaSquares();
   inv_level_sigma2_ = orb_extractor->GetInverseScaleSigmaSquares();
-  max_level_ = orb_extractor->GetLevels();
+  max_level_ = orb_extractor->GetLevels();      
 }
 
 std::vector<cv::DMatch> GuidedMatcher::Matcher(const cv::Mat &query_descriptors, const std::vector<size_t> query_indices,
@@ -74,7 +73,7 @@ std::vector<cv::DMatch> GuidedMatcher::Matcher(const cv::Mat &query_descriptors,
 
       float dist = DescriptorDist(query_descriptor, train_descriptors.row(idx));
 
-      if (dist < min_dist)
+      if ( dist <= dist_th && dist < min_dist)
       {
         if (use_ratio_test)
         {
@@ -319,6 +318,56 @@ std::vector<cv::DMatch> GuidedMatcher::DbowGuided2D2DMatcher(std::shared_ptr<Fra
 
   return matches;
 }
+
+std::vector<cv::DMatch> GuidedMatcher::DbowAndEpipolarGuided2D2DMatcher(std::shared_ptr<Frame> query_frame, 
+                                                          std::shared_ptr<Frame> train_frame, 
+                                                          const double dist_th, 
+                                                          const bool check_rotation,
+                                                          const bool use_ratio_test, const float ratio) {
+
+  auto matches = DbowGuided2D2DMatcher(query_frame, train_frame, dist_th, check_rotation, use_ratio_test, ratio);
+  // Recover Fundamental Matrix according to poses
+  cv::Mat F = RecoverFundamental(query_frame, train_frame);
+  // Compute epipole in second image
+  cv::Mat queryframe_o_w = query_frame->o_w();
+  cv::Mat qf_o_trainframe = train_frame->Project(queryframe_o_w);
+  cv::Mat uv = train_frame->camera_model()->Project(qf_o_trainframe);
+  double ex = uv.at<double>(0);
+  double ey = uv.at<double>(1);
+
+  auto cull_match_lambda = [&](cv::DMatch& match) -> bool {
+    // Skip the match which keypoint have a corresponding mappoint
+    if (query_frame->mappoint(match.queryIdx) || train_frame->mappoint(match.trainIdx))
+      return true;
+    
+    const cv::KeyPoint unkp_query = query_frame->undistorted_kp(match.queryIdx);
+    const cv::KeyPoint unkp_train = train_frame->undistorted_kp(match.trainIdx);
+
+    // The mappoint is too close to query_frame
+    const double delta_x = ex - unkp_train.pt.x;
+    const double delta_y = ey - unkp_train.pt.y;
+    // TUNE:
+    if (delta_x*delta_x + delta_y*delta_y < 100*scale_factors_[unkp_train.octave])
+      return true;
+    
+    // Check epipolar constraint
+    // TUNE:
+    double th = 3.84*level_sigma2_[unkp_train.octave];
+    if (!CheckDistEpipolarLine(unkp_query, unkp_train, F, th))
+      return true;
+
+    return false;
+  };
+  
+  // Epipolar constraint
+  matches.erase(std::remove_if(matches.begin(), matches.end(), cull_match_lambda), 
+                matches.end());
+
+  return matches;
+}
+
+
+
 // TODO: set all member functions as static function
 std::vector<cv::DMatch> GuidedMatcher::CheckRotation(std::shared_ptr<Frame> query_frame,
                                                      std::shared_ptr<Frame> train_frame,

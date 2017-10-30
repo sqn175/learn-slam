@@ -44,6 +44,7 @@ public:
   // Check if this map is in the frustum of the camera
   bool IsProjectable(std::shared_ptr<Frame> frame, cv::Mat& uv, int& scale, double& view_cosine);
   
+  bool IsObservedByKeyFrame(std::shared_ptr<KeyFrame> keyframe);
   // Mutators
   void set_pt_world(const cv::Mat&);
   // Accessors

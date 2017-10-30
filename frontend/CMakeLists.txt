@@ -16,6 +16,7 @@ mappoint.cc
 keyframe.cc
 map.cc
 guided_matcher.cc
+mapper.cc
 )
 message(STATUS ${PROJECT_SOURCE_DIR})
 target_link_libraries(${PROJECT_NAME}

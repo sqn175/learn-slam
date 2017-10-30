@@ -2,7 +2,7 @@
  * @Author: Shi Qin 
  * @Date: 2017-09-25 15:14:17 
  * @Last Modified by: Shi Qin
- * @Last Modified time: 2017-09-26 20:19:11
+ * @Last Modified time: 2017-10-25 19:49:46
  */
 
 #ifndef FRONTEND_GUIDED_MATCHER_H
@@ -18,15 +18,14 @@
 namespace lslam {
 
 class Frame;
+class KeyFrame;
 class MapPoint;
 
 class GuidedMatcher {
 public:
   GuidedMatcher() {};
-
-  // Mutators
-  void set_camera_model(std::shared_ptr<PinholeCamera>);
-  void set_orb_extractor(std::shared_ptr<ORB_SLAM2::ORBextractor>);
+  GuidedMatcher(std::shared_ptr<PinholeCamera> camera_model,
+                std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor);
 
   // 2d-2d matcher
   void SetupGuided2D2DMatcher(std::shared_ptr<Frame> query_frame);
@@ -41,6 +40,12 @@ public:
                                                       const bool use_ratio_test, const float ratio = 0.8);
 
   std::vector<cv::DMatch> DbowGuided2D2DMatcher(std::shared_ptr<Frame> query_frame, 
+                                                std::shared_ptr<Frame> train_frame, 
+                                                const double dist_th, 
+                                                const bool check_rotation,
+                                                const bool use_ratio_test, const float ratio=0.7);
+
+  std::vector<cv::DMatch> DbowAndEpipolarGuided2D2DMatcher(std::shared_ptr<Frame> query_frame, 
                                                 std::shared_ptr<Frame> train_frame, 
                                                 const double dist_th, 
                                                 const bool check_rotation,
@@ -74,7 +79,7 @@ private:
   std::vector<float> level_sigma2_;
   std::vector<float> inv_level_sigma2_;
 
-  // 2d-2d matcher variables
+  // 2d-2d matcher variables, only modified in frontend thread, it's thread safe
   std::shared_ptr<Frame> init_query_frame_; // Initial reference frame
   std::vector<cv::Point2f> guided_2d_pts_; // We search around guided_2d_pts in train frame 
   cv::Mat init_query_descriptors_;

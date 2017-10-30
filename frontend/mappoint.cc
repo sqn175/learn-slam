@@ -171,6 +171,10 @@ bool MapPoint::IsProjectable(std::shared_ptr<Frame> frame, cv::Mat& p_uv, int& o
   
 }
 
+bool MapPoint::IsObservedByKeyFrame(std::shared_ptr<KeyFrame> keyframe) {
+  return observations_.count(keyframe);
+}
+
 void MapPoint::set_pt_world(const cv::Mat& pt_world) {
   CHECK(pt_world.cols == 1 && pt_world.rows == 3) << "invalid pt_world dimension.";
   pt_world.copyTo(pt_world_);

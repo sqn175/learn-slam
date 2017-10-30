@@ -29,6 +29,20 @@ namespace lslam {
 Frontend::Frontend() : state_(FrontEndState::kNotInitialized) {
 }
 
+Frontend::Frontend(std::shared_ptr<Map> map,
+                   std::shared_ptr<PinholeCamera> camera_model,
+                   std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor,
+                   std::shared_ptr<ORBVocabulary> orb_voc,
+                   std::shared_ptr<GuidedMatcher> guided_matcher) 
+  : map_(map)
+  , camera_model_(camera_model)
+  , orb_extractor_(orb_extractor)
+  , orb_voc_(orb_voc)
+  , guided_matcher_(guided_matcher)
+  , state_(FrontEndState::kNotInitialized) {
+                    
+}
+
 bool Frontend::DataAssociationBootstrap() {
   // Step1. Set a initial reference frame
   if (!init_frame_) {
@@ -37,7 +51,7 @@ bool Frontend::DataAssociationBootstrap() {
       // Assign initial reference frame
       init_frame_ = cur_frame_;
       // Setup the initial frame of 2d2d matcher
-      guided_matcher_.SetupGuided2D2DMatcher(init_frame_);
+      guided_matcher_->SetupGuided2D2DMatcher(init_frame_);
     } 
     return false;
   }
@@ -52,7 +66,7 @@ bool Frontend::DataAssociationBootstrap() {
   }
 
   // Step2. Find correspondences
-  std::vector<cv::DMatch> matches = guided_matcher_.Guided2D2DMatcher(cur_frame_, 100, 50, true, 0.9, true);
+  std::vector<cv::DMatch> matches = guided_matcher_->Guided2D2DMatcher(cur_frame_, 100, 50, true, 0.9, true);
   
   // Draw matches
   for(auto& match : matches) {
@@ -195,7 +209,7 @@ bool Frontend::TrackToLastFrame() {
   // // TUNE: search range
   // int th = 15; 
   // auto start = std::chrono::high_resolution_clock::now();
-  // std::vector<cv::DMatch> matches = guided_matcher_.ProjectionGuided3D2DMatcher(last_frame_, cur_frame_,th, 100, true, false);
+  // std::vector<cv::DMatch> matches = guided_matcher_->ProjectionGuided3D2DMatcher(last_frame_, cur_frame_,th, 100, true, false);
   // auto end = std::chrono::high_resolution_clock::now();
   // std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
   // std::cout << "Guided match: " << elapsed.count() << " ms" << std::endl;
@@ -216,7 +230,7 @@ bool Frontend::TrackToLastFrame() {
 }
 
 bool Frontend::TrackToLastKeyFrame() {
-  auto matches = guided_matcher_.DbowGuided2D2DMatcher(reference_keyframe_, cur_frame_, 50, true, true, 0.7);
+  auto matches = guided_matcher_->DbowGuided2D2DMatcher(reference_keyframe_, cur_frame_, 50, true, true, 0.7);
   // TUNE: 15
   if (matches.size() < 15)
     return false;
@@ -258,7 +272,7 @@ bool Frontend::TrackToLocalMap() {
   auto mappoints = std::vector<std::shared_ptr<MapPoint>>(connected_mappoints.begin(), connected_mappoints.end());
 
   // Step2. 3d2d match
-  auto matches = guided_matcher_.ProjectionGuided3D2DMatcher(mappoints, cur_frame_, 1, 100, true, 0.8);
+  auto matches = guided_matcher_->ProjectionGuided3D2DMatcher(mappoints, cur_frame_, 1, 100, true, 0.8);
 
   // Assign matched 3d points to cur_frame
   for (auto& match : matches) {
@@ -286,8 +300,6 @@ bool Frontend::TrackToLocalMap() {
 }
 
 void Frontend::Process(cv::Mat image, double timestamp) {
-  image_ = image.clone();
-  cv::cvtColor(image_, image_, CV_GRAY2BGR);
   
   auto start = std::chrono::high_resolution_clock::now();
   cur_frame_ = std::make_shared<Frame>(image, timestamp, orb_extractor_, camera_model_, orb_voc_);
@@ -295,6 +307,9 @@ void Frontend::Process(cv::Mat image, double timestamp) {
   std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
   std::cout << "Frame preprocess: " << elapsed.count() << " ms" << std::endl;
 
+  image_ = image.clone();
+  cv::cvtColor(image_, image_, CV_GRAY2BGR);
+  
   if (state_ == FrontEndState::kInitialized) {
     // State: initialized  
     // We track the incoming frames
@@ -313,31 +328,6 @@ void Frontend::Process(cv::Mat image, double timestamp) {
   last_frame_ = cur_frame_;
 }
 
-void Frontend::init(const ParametersReader& params) {
-  // Initialize camera model
-  // TODO: Check pinholecamera_params != null
-  // Smart pointer initialize
-  camera_model_ = std::make_shared<PinholeCamera>(params.pinholecamera_params());
-
-  // Initialize ORB extractor
-  // TODO: using params to initialize
-  int features = 2000;
-  float scale = 1.2;
-  int level = 8;
-  int ini = 20;
-  int min = 7;
-  orb_extractor_ = std::make_shared<ORB_SLAM2::ORBextractor>(features, scale, level, ini, min);
-  
-  // Loading ORB vocabulary
-  std::cout<<"Loading ORB Vocabulary..."<<std::endl;
-  orb_voc_ = std::make_shared<ORBVocabulary>();
-  bool voc_loaded = orb_voc_->loadFromTextFile("/home/sqn/Documents/learn-slam/Vocabulary/ORBvoc.txt");
-  CHECK(voc_loaded) << "ORB Vocabulary loaded failed.";
-
-  // Initialize guided matcher
-  guided_matcher_.set_camera_model(camera_model_);
-  guided_matcher_.set_orb_extractor(orb_extractor_);
-}
 
 void Frontend::set_map(std::shared_ptr<Map> map) {
   map_ = map;

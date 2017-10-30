@@ -2,7 +2,7 @@
  * @Author: Shi Qin 
  * @Date: 2017-09-19 10:19:03 
  * @Last Modified by: Shi Qin
- * @Last Modified time: 2017-09-22 20:28:57
+ * @Last Modified time: 2017-10-25 20:32:13
  */
 
 #ifndef SLAM_SLAM_H_
@@ -16,10 +16,12 @@
 
 #include "glog/logging.h"
 
+#include "../3rdparty/ORB_SLAM2_modified/ORBextractor.h"
 #include "parameters_reader.h"
 #include "pinhole_camera.h"
 #include "threadsafe_queue.h"
 #include "frontend.h"
+#include "mapper.h"
 #include "visualizer.h"
 
 namespace lslam {
@@ -27,6 +29,7 @@ namespace lslam {
 class Map;
 class Frame;
 class KeyFrame;
+class Mapper;
 
 struct RawData {
   cv::Mat image;
@@ -53,6 +56,7 @@ public:
 private:
   void FrameConsumerLoop();
   void VisualizationLoop();
+  void MapperLoop();
   void OptimizationLoop();
 
 private:
@@ -74,6 +78,12 @@ private:
   // - Keyframes to be optimized
   ThreadSafeQueue<std::shared_ptr<KeyFrame>> keyframes_;
 
+  // Operations
+  std::shared_ptr<PinholeCamera> camera_model_;//Camera model
+  std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor_;// ORB extractor to detect and describe features
+  std::shared_ptr<ORBVocabulary> orb_voc_;// ORB Vocabulary
+  std::shared_ptr<GuidedMatcher> guided_matcher_;// Guided Matcher
+
   // Threads
   std::thread frame_consumer_thread_; // Thread running FrameConsumerLoop
   std::thread visualization_thread_; // Thread running VisualizationLoop()
@@ -82,7 +92,9 @@ private:
   unsigned long last_added_camerameas_time_; // Timestamp of the newest camera measurement added to camera_meas_received_
   unsigned long last_added_camerameas_id_; // id
 
+
   Frontend frontend_; // The frontend
+  Mapper mapper_;
 
 };
     

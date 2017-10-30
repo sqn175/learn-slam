@@ -21,7 +21,7 @@
 #include "helper.h"
 
 namespace lslam {
-  
+
 typedef DBoW2::TemplatedVocabulary<DBoW2::FORB::TDescriptor, DBoW2::FORB> ORBVocabulary;
 class Map;
 class Frame;
@@ -37,10 +37,15 @@ public:
 public:
   // Constructor
   Frontend();
+
+  Frontend(std::shared_ptr<Map> map,
+           std::shared_ptr<PinholeCamera> camera_model,
+           std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor,
+           std::shared_ptr<ORBVocabulary> orb_voc,
+           std::shared_ptr<GuidedMatcher> guided_matcher);
+
   ~Frontend() {
   }
-  
-  void init(const ParametersReader&);
   
   void Process(cv::Mat image, double timestamp);
   //void Process(std::shared_ptr<Frame> camera_measurement_current);
@@ -72,11 +77,12 @@ private:
 
   // Camera model
   std::shared_ptr<PinholeCamera> camera_model_;
-
   // ORB extractor to detect and describe features
   std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor_;
   // ORB Vocabulary
   std::shared_ptr<ORBVocabulary> orb_voc_;
+  // Guided matcher
+  std::shared_ptr<GuidedMatcher> guided_matcher_;
   
   FrontEndState state_;  // frontend state
   
@@ -88,9 +94,6 @@ private:
   
   // Visualized Data
   cv::Mat image_;
-  
-  // Guided matcher
-  GuidedMatcher guided_matcher_;
 
   //
   std::shared_ptr<KeyFrame> reference_keyframe_;

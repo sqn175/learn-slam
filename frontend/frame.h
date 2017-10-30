@@ -72,6 +72,8 @@ public:
   cv::Mat T_wc() const;
   cv::Mat T_cl() const;
   cv::Mat o_w() const;
+  cv::Mat R_cw() const;
+  cv::Mat t_cw() const;
 
   // Project world coordinate 3d point to image coordinate 3d point
   cv::Mat Project(const cv::Mat pt3d_w);
