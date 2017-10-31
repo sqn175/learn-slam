@@ -175,6 +175,30 @@ bool MapPoint::IsObservedByKeyFrame(std::shared_ptr<KeyFrame> keyframe) {
   return observations_.count(keyframe);
 }
 
+void MapPoint::ReplaceWith(std::shared_ptr<MapPoint> mp) {
+  if (mp->id() == id_) 
+    return;
+
+  // TODO: mutex lock
+  is_bad_ = true;
+  // This mappoint will be erased, so we need to update the 
+  // keyframes observing this mappoint
+  for (auto& ob : observations_) {
+    auto kf = ob.first;
+    if (mp->IsObservedByKeyFrame(kf)) {
+      // mp is already associated to this observing keyframe, 
+      // we simply erase the association of this mappoint and the observing keyframe
+      kf->EraseMapPoint(ob.second);
+    } else {
+      kf->set_mappoint(ob.second, mp);
+      mp->AddObservation(kf, ob.second);
+    }
+  }
+
+  mp->ComputeDistinctiveDescriptors();
+  // TODO: need to update depth? 
+}
+
 void MapPoint::set_pt_world(const cv::Mat& pt_world) {
   CHECK(pt_world.cols == 1 && pt_world.rows == 3) << "invalid pt_world dimension.";
   pt_world.copyTo(pt_world_);

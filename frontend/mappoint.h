@@ -22,7 +22,7 @@ class Frame;
 class KeyFrame;
 
 // TODO: thread safe???
-class MapPoint {
+class MapPoint : public std::enable_shared_from_this<MapPoint> {
 public:
   // Constructor
   // MapPoint();
@@ -45,6 +45,9 @@ public:
   bool IsProjectable(std::shared_ptr<Frame> frame, cv::Mat& uv, int& scale, double& view_cosine);
   
   bool IsObservedByKeyFrame(std::shared_ptr<KeyFrame> keyframe);
+
+  void ReplaceWith(std::shared_ptr<MapPoint> mp);
+
   // Mutators
   void set_pt_world(const cv::Mat&);
   // Accessors

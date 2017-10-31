@@ -13,9 +13,15 @@ void Map::AddKeyFrame(std::shared_ptr<KeyFrame> keyframe) {
   keyframes_.insert(keyframe);
 }
 
-void Map::AddMapPoint(std::shared_ptr<MapPoint> landmarkpoint) {
+void Map::AddMapPoint(std::shared_ptr<MapPoint> mappoint) {
   std::unique_lock<std::mutex> lock(mutex_);
-  mappoints_.insert(landmarkpoint);
+  mappoints_.insert(mappoint);
+}
+
+void Map::EraseMapPoint(std::shared_ptr<MapPoint> mappoint) {
+  std::unique_lock<std::mutex> lock(mutex_);
+  mappoints_.erase(mappoint);
+  // TODO: check we delete the mappoint pointer and the memory
 }
 
 size_t Map::SizeOfKeyframes() {

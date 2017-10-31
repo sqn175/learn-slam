@@ -29,7 +29,7 @@ class KeyFrame;
 
 class Frontend{
 public:
-  enum class FrontEndState {
+  enum FrontEndState {
     kNotInitialized, // not initialized
     kInitialized,    // initialized
   };
@@ -58,6 +58,8 @@ public:
   
   // For visualization
   void PublishVisualization(cv::Mat& im, std::shared_ptr<Frame>& frame);
+  // Publish new created keyframe
+  void PublishKeyFrame(std::shared_ptr<KeyFrame>& keyframe);
 
 private:
   // Initial data association to create initial 3D map when we have a initial camera pose
@@ -71,6 +73,10 @@ private:
 
   // 
   bool TrackToLocalMap();
+
+  // Return true if current frame is a keyframe
+  bool AsKeyFrame();
+  
 private:
   
   std::shared_ptr<Map> map_; 

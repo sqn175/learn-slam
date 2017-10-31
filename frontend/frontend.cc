@@ -276,6 +276,9 @@ bool Frontend::TrackToLocalMap() {
 
   // Assign matched 3d points to cur_frame
   for (auto& match : matches) {
+    // Skip the already associated mappoint
+    if (cur_frame_->mappoint(match.trainIdx))
+      continue;
     cur_frame_->set_mappoint(match.trainIdx, mappoints[match.queryIdx]);
   }
   
@@ -340,6 +343,10 @@ void Frontend::set_camera_model(std::shared_ptr<PinholeCamera> camera_model) {
 void Frontend::PublishVisualization(cv::Mat& im, std::shared_ptr<Frame>& frame){
   im = image_.clone();
   frame = cur_frame_;
+}
+
+void Frontend::PublishKeyFrame(std::shared_ptr<KeyFrame>& keyframe) {
+  keyframe = reference_keyframe_;
 }
 
 } // namespace lslam

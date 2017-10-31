@@ -23,6 +23,11 @@ class MapPoint;
 
 class GuidedMatcher {
 public:
+  enum RadiusFlag {
+    kRadiusFromViewCosine = 0,
+    kRadiusFromOctave,
+  };
+public:
   GuidedMatcher() {};
   GuidedMatcher(std::shared_ptr<PinholeCamera> camera_model,
                 std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor);
@@ -36,7 +41,9 @@ public:
   // 3d-2d matcher
   std::vector<cv::DMatch> ProjectionGuided3D2DMatcher(std::vector<std::shared_ptr<MapPoint>> query_mappoints, 
                                                       std::shared_ptr<Frame> train_frame, 
-                                                      const double radius_factor, const double dist_th, 
+                                                      const double radius_factor, RadiusFlag flag,
+                                                      const bool check_proj_error,
+                                                      const double dist_th, 
                                                       const bool use_ratio_test, const float ratio = 0.8);
 
   std::vector<cv::DMatch> DbowGuided2D2DMatcher(std::shared_ptr<Frame> query_frame, 

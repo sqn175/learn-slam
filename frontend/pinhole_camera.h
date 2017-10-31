@@ -8,6 +8,7 @@
 
 #include <glog/logging.h>
 #include <opencv2/core.hpp>
+#include <opencv2/core/types.hpp>
 #include <opencv2/imgproc.hpp>
 
 #include "parameters.h"
@@ -40,6 +41,9 @@ public:
   // Projection functions
   // Project camera coordinate 3d point to image coordinate 2d point 
   cv::Mat Project(cv::Mat& pt3d);
+
+  // Unproject, (u,v) -> (x,y,1)
+  cv::Mat UnProject(const cv::KeyPoint& kp);
 
 private:
   // Compute undistorted image bounds 

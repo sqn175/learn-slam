@@ -104,12 +104,18 @@ std::vector<std::shared_ptr<KeyFrame>> KeyFrame::GetConnectedKeyFrames(const siz
   }
 }
 
+double KeyFrame::Depth(const cv::Mat& p3d) {
+  CHECK(p3d.data && p3d.rows == 3 && p3d.cols == 1);
+  return R_cw_.row(2).dot(p3d) + t_cw_.at<double>(2);
+}
+
 double KeyFrame::SceneDepth(const int q){
   std::vector<double> depths;
   for (auto& mp : mappoints_) {
     if (mp) {
-      cv::Mat image_3d = Project(mp->pt_world());
-      depths.push_back(image_3d.at<double>(2));
+      // TODO: using frame::depth()
+      double depth = Depth(mp->pt_world());
+      depths.push_back(depth);
     }
   }
   sort(depths.begin(), depths.end());

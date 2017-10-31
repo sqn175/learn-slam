@@ -197,7 +197,8 @@ std::vector<cv::DMatch> GuidedMatcher::Guided2D2DMatcher(std::shared_ptr<Frame> 
 
 std::vector<cv::DMatch> GuidedMatcher::ProjectionGuided3D2DMatcher(std::vector<std::shared_ptr<MapPoint>> query_mappoints,
                                                                    std::shared_ptr<Frame> train_frame,
-                                                                   const double radius_factor, 
+                                                                   const double radius_factor, RadiusFlag flag,
+                                                                   const bool check_proj_error,
                                                                    const double dist_th,
                                                                    const bool use_ratio_test, const float ratio)
 {
@@ -214,27 +215,54 @@ std::vector<cv::DMatch> GuidedMatcher::ProjectionGuided3D2DMatcher(std::vector<s
     double view_cosine;
     cv::Mat range = cv::Mat(2, 2, CV_64F);
     double radius = 0;
-    if (mp->IsProjectable(train_frame, uv, octave, view_cosine)) {
-
-      // TUNE: 
-      if (view_cosine > 0.998) {
-        radius = 2.5;
-      } else {
-        radius = 4.0;
+    if (mp && mp->IsProjectable(train_frame, uv, octave, view_cosine)) {
+      switch (flag) {
+        case kRadiusFromViewCosine: {
+          // TUNE: 
+          if (view_cosine > 0.998) {
+            radius = 2.5;
+          } else {
+            radius = 4.0;
+          }
+          break;
+        }
+        case kRadiusFromOctave: {
+          radius = scale_factors_[octave];
+          break;
+        }
+        default: {
+          CHECK(false) << "invalid RadiusFlag.";
+        }
       }
+
       radius = radius * radius_factor;
-      range.at<double>(0, 0) = (double)guided_2d_pts_[i].x - radius;
-      range.at<double>(0, 1) = (double)guided_2d_pts_[i].y - radius;
-      range.at<double>(1, 0) = (double)guided_2d_pts_[i].x + radius;
-      range.at<double>(1, 1) = (double)guided_2d_pts_[i].y + radius;
+
+      // TODO: wrap PointsInRange(double x, double y, double radius);
+      double x = uv.at<double>(0);
+      double y = uv.at<double>(1);
+      range.at<double>(0, 0) = x - radius;
+      range.at<double>(0, 1) = y - radius;
+      range.at<double>(1, 0) = x + radius;
+      range.at<double>(1, 1) = y + radius;
       std::vector<size_t> indices = train_frame->range_searcher()->PointsInRange(range);
       // Check octave, we only keep the keypoint index with octave in [octave-1, octave]
-      // Also skip the already associated mappoint
-      indices.erase(std::remove_if(indices.begin(), indices.end(), 
-                                  [&train_frame, &octave](size_t& i) -> bool { 
-                                    int train_octave = train_frame->undistorted_kp(i).octave;
-                                    return train_octave < octave - 1 || train_octave > octave || !train_frame->mappoint(i); 
-                                  }),
+      // Also skip the already associated mappoint? 
+      // ORB SearchByProjection(Frame &F, const vector<MapPoint*> &vpMapPoints, const float th) does, we don't
+      auto cull_indices_lambda = [&](size_t& i) -> bool { 
+        const cv::KeyPoint& train_kp = train_frame->undistorted_kp(i);
+        bool proj_error = false;
+        if (check_proj_error) {
+          const double d_x = x - train_kp.pt.x;
+          const double d_y = y - train_kp.pt.y;
+          const double error_th = 5.991 * level_sigma2_[train_kp.octave];
+          if ((d_x*d_x + d_y*d_y) > error_th)
+            proj_error = true;
+        }
+        // TODO:!train_frame->mappoint(i)
+        return train_kp.octave < octave - 1 || train_kp.octave > octave || proj_error;// || train_frame->mappoint(i); 
+      };
+
+      indices.erase(std::remove_if(indices.begin(), indices.end(), cull_indices_lambda),
                     indices.end());
 
       guided_train_indices.push_back(indices);

@@ -67,6 +67,10 @@ cv::Mat PinholeCamera::Project(cv::Mat& pt3d) {
   return (cv::Mat_<double>(2,1) << u,v);
 }
 
+cv::Mat PinholeCamera::UnProject(const cv::KeyPoint& kp) {
+  return (cv::Mat_<double>(3,1) << (kp.pt.x - cx_)/fx_, (kp.pt.y - cy_)/fy_, 1.0);
+}
+
 void PinholeCamera::SetImageBounds() {
   if (distortion_type_.compare("radialtangential") == 0) {
 

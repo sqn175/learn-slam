@@ -24,6 +24,8 @@ public:
   
   void AddKeyFrame(std::shared_ptr<KeyFrame> keyframe);
   void AddMapPoint(std::shared_ptr<MapPoint> mappoint);
+
+  void EraseMapPoint(std::shared_ptr<MapPoint> mappoint);
   
   size_t SizeOfKeyframes();
   size_t SizeOfMappoints();

@@ -201,6 +201,12 @@ cv::Mat Frame::Project(const cv::Mat pt3d_w) {
   return p_c;
 }
 
+cv::Mat Frame::KRtProject(const cv::Mat& p3d) {
+  CHECK(camera_model_);
+  cv::Mat p_c = Project(p3d);
+  return camera_model_->Project(p_c);
+}
+
 void Frame::ComputeBoW() {
   if (bow_vector_.empty() || feature_vector_.empty()) {
     CHECK(descriptors_.data);
@@ -279,6 +285,10 @@ void Frame::ConnectToMap() {
     if (mp) 
       connected_mappoints_.erase(mp);
   }
+}
+
+void Frame::EraseMapPoint(const size_t& idx) {
+  mappoints_[idx].reset();
 }
 
 } // namespace lslam

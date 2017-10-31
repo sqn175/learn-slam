@@ -35,6 +35,8 @@ public:
   void AddChild(std::shared_ptr<KeyFrame> child);
   std::vector<std::shared_ptr<KeyFrame>> GetConnectedKeyFrames(const size_t n = 0);
 
+  // Input: (x;y;z)
+  double Depth(const cv::Mat& p3d);
   // Compute Scene depth
   double SceneDepth(const int q);
 

@@ -78,9 +78,13 @@ public:
   // Project world coordinate 3d point to image coordinate 3d point
   cv::Mat Project(const cv::Mat pt3d_w);
 
+  cv::Mat KRtProject(const cv::Mat& p3d);
+
   void ComputeBoW();
   // 
   virtual void ConnectToMap();
+
+  void EraseMapPoint(const size_t& idx);
     
 protected:
   // === Raw data ===
