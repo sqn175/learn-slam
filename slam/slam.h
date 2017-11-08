@@ -87,7 +87,7 @@ private:
   // Threads
   std::thread frame_consumer_thread_; // Thread running FrameConsumerLoop
   std::thread visualization_thread_; // Thread running VisualizationLoop()
-  std::thread optimization_thread_; // Thread running OptimizationLoop()
+  std::thread mapper_thread_; // Thread running OptimizationLoop()
 
   unsigned long last_added_camerameas_time_; // Timestamp of the newest camera measurement added to camera_meas_received_
   unsigned long last_added_camerameas_id_; // id

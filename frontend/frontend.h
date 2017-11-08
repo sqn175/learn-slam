@@ -30,8 +30,9 @@ class KeyFrame;
 class Frontend{
 public:
   enum FrontEndState {
-    kNotInitialized, // not initialized
-    kInitialized,    // initialized
+    kNotInitialized = 0, // Not initialized
+    kInitialized,    // Just initialized, we use this state to publish two initial keyframes
+    kTracking,       // Tracking
   };
   
 public:
@@ -50,16 +51,23 @@ public:
   void Process(cv::Mat image, double timestamp);
   //void Process(std::shared_ptr<Frame> camera_measurement_current);
   
+  bool FrameIsKeyFrame();
+  void CreateKeyFrame();
+
   // Accessors
   PinholeCamera camera_model() const;
+  FrontEndState state() const { return state_; }
+  // TODO: redesign this interference, frontend only output frame, and decide if this is a keyframe,
+  // We construct a keyframe in the mapper thread.
+  std::shared_ptr<KeyFrame> cur_keyframe() const { return cur_keyframe_; }
+  std::shared_ptr<KeyFrame> init_keyframe() const { return init_keyframe_; }
+
+  std::shared_ptr<Frame> cur_frame() const { return cur_frame_; }
+
+  cv::Mat image() const { return image_.clone(); }
   // Setters
   void set_map(std::shared_ptr<Map> map);
   void set_camera_model(std::shared_ptr<PinholeCamera> camera_model);
-  
-  // For visualization
-  void PublishVisualization(cv::Mat& im, std::shared_ptr<Frame>& frame);
-  // Publish new created keyframe
-  void PublishKeyFrame(std::shared_ptr<KeyFrame>& keyframe);
 
 private:
   // Initial data association to create initial 3D map when we have a initial camera pose
@@ -92,6 +100,10 @@ private:
   
   FrontEndState state_;  // frontend state
   
+  // TODO: redesign this interference, do we need to handle keyframe things in this class?
+  std::shared_ptr<KeyFrame> cur_keyframe_;
+  std::shared_ptr<KeyFrame> init_keyframe_;
+
   std::shared_ptr<Frame> cur_frame_; // current camera_measurement
   
   std::shared_ptr<Frame> last_frame_; // previous camera_measurement
@@ -103,7 +115,11 @@ private:
 
   //
   std::shared_ptr<KeyFrame> reference_keyframe_;
-
+  // Keyframe insertion decision parameters, TODO: wrap this out of Frontend class
+  int max_keyframe_interval_;
+  int min_keyframe_interval_;
+  size_t last_frame_id_as_kf_;
+  int n_match_to_localmap_;
   // Associated local 
 };
 

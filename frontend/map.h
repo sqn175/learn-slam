@@ -15,7 +15,7 @@ namespace lslam {
 
 class MapPoint;
 class KeyFrame;
-
+// TODO: using a thread-safe hashmap?
 // Thread safe map
 class Map {
 public:
@@ -25,6 +25,7 @@ public:
   void AddKeyFrame(std::shared_ptr<KeyFrame> keyframe);
   void AddMapPoint(std::shared_ptr<MapPoint> mappoint);
 
+  void EraseKeyFrame(std::shared_ptr<KeyFrame> keyframe);
   void EraseMapPoint(std::shared_ptr<MapPoint> mappoint);
   
   size_t SizeOfKeyframes();
@@ -32,6 +33,9 @@ public:
   
   std::vector<std::shared_ptr<KeyFrame>> keyframes();
   std::vector<std::shared_ptr<MapPoint>> mappoints();
+
+  // Currently just like ORB_SLAM2, TODO: design a finer lock
+  std::mutex mMutexMapUpdate;
   
 private:
   std::set<std::shared_ptr<KeyFrame>> keyframes_; // all keyframes in the map

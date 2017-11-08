@@ -18,7 +18,7 @@
 
 int main(int argc, char **argv){
   google::InitGoogleLogging(argv[0]);
-
+  FLAGS_logbufsecs = 0;
   // configuration file
   std::string config_file_name = "/home/sqn/Documents/learn-slam/config/config_fpga_p2_euroc.yaml";
 
@@ -60,7 +60,7 @@ int main(int argc, char **argv){
   for (int i = 0; i < image_str.size(); ++i) {
     cv::Mat image = cv::imread(images_file_name + image_str[i], CV_LOAD_IMAGE_UNCHANGED);
     // test
-    if (timestamps[i] < 1403637152138319104/1e9) continue;
+    if (timestamps[i] < 1403637202188318976/1e9) continue;
     slam.AddMonoImage(image, timestamps[i]);
 
   }

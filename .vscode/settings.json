@@ -46,7 +46,8 @@
         "streambuf": "cpp",
         "bitset": "cpp",
         "vector": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "*.ipp": "cpp"
     },
     "window.zoomLevel": -2
 }

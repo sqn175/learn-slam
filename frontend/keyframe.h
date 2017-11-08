@@ -15,12 +15,14 @@
 
 namespace lslam {
 
+class MapPoint;
 // TODO: Thread safe???
 
 class KeyFrame : public Frame, public std::enable_shared_from_this<KeyFrame> {
 public:
   // Constructor from base Frame object
   KeyFrame(const Frame& frame);
+  ~KeyFrame();
 
   // accessor
   unsigned long id() const;
@@ -33,12 +35,21 @@ public:
   void AddConnection(std::shared_ptr<KeyFrame> frame, const int weight);
   void ConnectToMap();
   void AddChild(std::shared_ptr<KeyFrame> child);
+  void EraseChild(std::shared_ptr<KeyFrame> child);
   std::vector<std::shared_ptr<KeyFrame>> GetConnectedKeyFrames(const size_t n = 0);
-
+  int GetConnectedWeight(std::shared_ptr<KeyFrame> keyframe);
+  void SetParent(std::shared_ptr<KeyFrame> parent);
   // Input: (x;y;z)
   double Depth(const cv::Mat& p3d);
   // Compute Scene depth
   double SceneDepth(const int q);
+
+  using Frame::EraseMapPoint;
+  void EraseMapPoint(std::shared_ptr<MapPoint> mappoint);
+
+  void SetBadFlag();
+
+  void EraseConnectedKeyFrame(std::shared_ptr<KeyFrame> keyframe);
 
 private:
   // Unique keyframe id, 0,1,2,...

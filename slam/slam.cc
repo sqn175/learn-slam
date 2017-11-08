@@ -8,6 +8,8 @@
 #include "slam.h"
 #include <opencv2/highgui.hpp>
 #include <opencv2/core.hpp>
+#include <chrono>
+#include <thread>
 
 #include "visualizer.h"
 #include "map.h"
@@ -56,10 +58,13 @@ bool Slam::Init(const std::string config_file) {
   last_added_camerameas_time_ = 0;
   last_added_camerameas_id_ = 0;
 
+  // Initialize mapper
+  mapper_ = Mapper(map_, guided_matcher_, orb_extractor_);
+
   // Start threads
   frame_consumer_thread_ = std::thread(&Slam::FrameConsumerLoop, this);
   visualization_thread_ = std::thread(&Slam::VisualizationLoop, this);
-
+  mapper_thread_ = std::thread(&Slam::MapperLoop, this);
 }
 bool Slam::AddMonoImage(const cv::Mat &image, const double &timestamp) {
   // Check image is valid
@@ -79,19 +84,35 @@ void Slam::FrameConsumerLoop() {
   VisualizedData vis;
   cv::Mat im;
   std::shared_ptr<Frame> frame;
+  std::shared_ptr<KeyFrame> keyframe;
   while (true) {
     // Get data from queue, and check for termination check
-    if (camera_meas_received_.PopBlocking(&input_data) == false)
+    if (camera_meas_received_.PopBlocking(input_data) == false)
       return;
 
     // Feed to frontend
     frontend_.Process(input_data.image, input_data.timestamp);
-    frontend_.PublishVisualization(im, frame);
 
+    // pubish processed frame and image
+    frame = frontend_.cur_frame();
+    im = frontend_.image();
+
+    // Visualization
     vis.frame = frame;
     vis.image = im;
-    // We get the current camera pose, push to the visualization_queue
     camera_meas_visualized_.PushBlockingIfFull(vis, 1);
+
+    // 
+    if (frontend_.state() == Frontend::kInitialized) {
+      // Initialized, we create the first two keyframes
+      keyframes_.PushBlockingIfFull(frontend_.init_keyframe(), 1);
+      keyframes_.PushBlockingIfFull(frontend_.cur_keyframe(),1);
+    } else if (frontend_.state() == Frontend::kTracking) {
+      if (frontend_.FrameIsKeyFrame()) {
+        frontend_.CreateKeyFrame();
+        keyframes_.PushBlockingIfFull(frontend_.cur_keyframe(),1);
+      }
+    }
   }
 }
 
@@ -103,7 +124,7 @@ void Slam::VisualizationLoop() {
 void Slam::MapperLoop() {
   std::shared_ptr<KeyFrame> keyframe;
   while (true) {
-    if (keyframes_.PopBlocking(&keyframe) == false)
+    if (keyframes_.PopBlocking(keyframe) == false)
       return;
 
     // Feed to mapper

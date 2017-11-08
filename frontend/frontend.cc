@@ -9,7 +9,7 @@
 #include <ctime>
 #include <utility>
 #include <map>
-
+#include <mutex>
 
 #include <Optimizer.h>
 
@@ -39,7 +39,9 @@ Frontend::Frontend(std::shared_ptr<Map> map,
   , orb_extractor_(orb_extractor)
   , orb_voc_(orb_voc)
   , guided_matcher_(guided_matcher)
-  , state_(FrontEndState::kNotInitialized) {
+  , state_(FrontEndState::kNotInitialized)
+  , max_keyframe_interval_(30)
+  , min_keyframe_interval_(0){
                     
 }
 
@@ -66,7 +68,7 @@ bool Frontend::DataAssociationBootstrap() {
   }
 
   // Step2. Find correspondences
-  std::vector<cv::DMatch> matches = guided_matcher_->Guided2D2DMatcher(cur_frame_, 100, 50, true, 0.9, true);
+  std::vector<cv::DMatch> matches = guided_matcher_->Guided2D2DMatcher(cur_frame_, 100, 50, 0.9, true);
   
   // Draw matches
   for(auto& match : matches) {
@@ -110,21 +112,23 @@ bool Frontend::DataAssociationBootstrap() {
   t_cw.copyTo(T_cw.rowRange(0,3).col(3));
   cur_frame_->SetPose(T_cw);
 
+  std::cout << "New Map created with " << matches.size() << " points" <<std::endl;
+  LOG(INFO) << "New Map created with " << matches.size() << " points";
   // Create Map
   // - Wrap keyframes and insert in the map
-  auto init_keyframe = std::make_shared<KeyFrame>(*init_frame_);
-  auto cur_keyframe = std::make_shared<KeyFrame>(*cur_frame_);
+  init_keyframe_ = std::make_shared<KeyFrame>(*init_frame_);
+  cur_keyframe_ = std::make_shared<KeyFrame>(*cur_frame_);
   // init_keyframe->ComputeBoW();
   // cur_keyframe->ComputeBoW();
-  map_->AddKeyFrame(init_keyframe);
-  map_->AddKeyFrame(cur_keyframe);
+  map_->AddKeyFrame(init_keyframe_);
+  map_->AddKeyFrame(cur_keyframe_);
 
   // - Wrap mappoints and insert in the map
   for (auto& match : matches) {
     cv::Mat point_3d(points_3d[match.queryIdx]);
     // Wrap CV_32F to CV_64F
     point_3d.convertTo(point_3d, CV_64F);
-    auto mappoint = std::make_shared<MapPoint>(point_3d, cur_keyframe);
+    auto mappoint = std::make_shared<MapPoint>(point_3d, cur_keyframe_);
     // Insert in the map
     map_->AddMapPoint(mappoint);
 
@@ -136,51 +140,49 @@ bool Frontend::DataAssociationBootstrap() {
     cur_frame_->set_outlier(match.trainIdx, false);
 
     // Associate mappoint to keyframe
-    init_keyframe->set_mappoint(match.queryIdx, mappoint);
-    cur_keyframe->set_mappoint(match.trainIdx, mappoint);
+    init_keyframe_->set_mappoint(match.queryIdx, mappoint);
+    cur_keyframe_->set_mappoint(match.trainIdx, mappoint);
 
-    init_keyframe->set_outlier(match.queryIdx, false);
-    cur_keyframe->set_outlier(match.trainIdx, false);
+    init_keyframe_->set_outlier(match.queryIdx, false);
+    cur_keyframe_->set_outlier(match.trainIdx, false);
 
     // Associate keyframe to mappoint
-    mappoint->AddObservation(init_keyframe, match.queryIdx);
-    mappoint->AddObservation(cur_keyframe, match.trainIdx);
+    mappoint->AddObservation(init_keyframe_, match.queryIdx);
+    mappoint->AddObservation(cur_keyframe_, match.trainIdx);
 
   }
 
   // Associate keyframe to keyframe
-  init_keyframe->ConnectToMap();
-  cur_keyframe->ConnectToMap();
-
-  LOG(INFO) << "New Map created with " << map_->SizeOfMappoints() << " points";
+  init_keyframe_->ConnectToMap();
+  cur_keyframe_->ConnectToMap();
 
   // Bundle Adjustment
-  ORB_SLAM2::Optimizer::GlobalBundleAdjustemnt(map_, 20);
-
+  ORB_SLAM2::Optimizer::GlobalBundleAdjustment(map_, 20);
   // Set median depth to 1, and scale
-  double median_depth = init_keyframe->SceneDepth(2);
+  double median_depth = init_keyframe_->SceneDepth(2);
   CHECK(median_depth >= 0) << "Wrong initialization.";
+  // TODO: check there are 100 more mappoints in map, otherwise reset
 
   // Scale initial pose
-  cv::Mat T_cw_scaled = cur_keyframe->T_cw();
+  cv::Mat T_cw_scaled = cur_keyframe_->T_cw();
   T_cw_scaled.col(3).rowRange(0,3) = T_cw_scaled.col(3).rowRange(0,3) / median_depth;
-  cur_keyframe->SetPose(T_cw_scaled);
+  cur_keyframe_->SetPose(T_cw_scaled);
 
   cur_frame_->SetPose(T_cw_scaled);
 
   // Scale initial mappoints
-  std::vector<std::shared_ptr<MapPoint>> mappoints = init_keyframe->mappoints();
+  std::vector<std::shared_ptr<MapPoint>> mappoints = init_keyframe_->mappoints();
   for (auto& mp:mappoints) {
     if (mp) {
       mp->set_pt_world(mp->pt_world() / median_depth);
-      mp->ComputeDistinctiveDescriptors();
-      mp->UpdateNormalAndDepth();
+      mp->SetDescriptors();
+      mp->SetNormalAndDepth();
     }
   }
 
   // Set frontend last_keyframe
-  reference_keyframe_ = cur_keyframe;
-
+  reference_keyframe_ = cur_keyframe_;
+  last_frame_id_as_kf_ = cur_frame_->id();
   return true;
 
 }
@@ -230,7 +232,7 @@ bool Frontend::TrackToLastFrame() {
 }
 
 bool Frontend::TrackToLastKeyFrame() {
-  auto matches = guided_matcher_->DbowGuided2D2DMatcher(reference_keyframe_, cur_frame_, 50, true, true, 0.7);
+  auto matches = guided_matcher_->DbowGuided2D2DMatcher(reference_keyframe_, cur_frame_, 50, true, 0.7);
   // TUNE: 15
   if (matches.size() < 15)
     return false;
@@ -268,11 +270,36 @@ bool Frontend::TrackToLocalMap() {
   //        Local map consists of mappoints and keyframes associated to current frame
   cur_frame_->ConnectToMap();
   // TODO: consider whether we should store the connected mappoints in the Frame class
+  // We do not search the mappoints already associated to cur_frame keypoints 
+  // in the previous TrackToLastFrame or TrackToLastKeyFrame functions
   auto connected_mappoints = cur_frame_->connected_mappoints();
   auto mappoints = std::vector<std::shared_ptr<MapPoint>>(connected_mappoints.begin(), connected_mappoints.end());
 
   // Step2. 3d2d match
-  auto matches = guided_matcher_->ProjectionGuided3D2DMatcher(mappoints, cur_frame_, 1, 100, true, 0.8);
+  std:;vector<size_t> projectable_indices;
+  auto matches = guided_matcher_->ProjectionGuided3D2DMatcher(mappoints, cur_frame_, 1, GuidedMatcher::kRadiusFromViewCosine,
+                                                             false, 100, 0.8, projectable_indices);
+  // Update mappoint statics
+  auto mps = cur_frame_->mappoints();
+  //test
+  int idx = 0;
+  for (auto& mp : mps) {
+    if (mp) {
+      if (!mp->is_bad())
+        mp->IncreaseCntProjected();
+      else {
+      // test
+        if (idx == 1685)
+          std::cout << "mappoint:"<< mp->id()<<" erased."<<std::endl;
+        mp.reset(); 
+      }
+      //test
+      ++idx;
+    }
+  }
+  for (auto& idx : projectable_indices) {
+    mappoints[idx]->IncreaseCntProjected();
+  }
 
   // Assign matched 3d points to cur_frame
   for (auto& match : matches) {
@@ -285,19 +312,20 @@ bool Frontend::TrackToLocalMap() {
   // Optimize Pose
   ORB_SLAM2::Optimizer::PoseOptimization(cur_frame_);
   
-  int n_match = 0;
+  n_match_to_localmap_ = 0;
   for (size_t i = 0; i < cur_frame_->mappoints().size(); ++i) {
     if (cur_frame_->mappoint(i)) {
       if (cur_frame_->outlier(i)) {
         // We do nothing? Do we need to kick out the outlier mappoint?
       } else {
-        n_match++;
+        cur_frame_->mappoint(i)->IncreaseCntTracked();
+        n_match_to_localmap_++;
       }
     }
   }
 
   // TUNE: 30
-  bool success = n_match >= 30;
+  bool success = n_match_to_localmap_ >= 30;
   return success;
 
 }
@@ -313,11 +341,16 @@ void Frontend::Process(cv::Mat image, double timestamp) {
   image_ = image.clone();
   cv::cvtColor(image_, image_, CV_GRAY2BGR);
   
-  if (state_ == FrontEndState::kInitialized) {
-    // State: initialized  
-    // We track the incoming frames
-    DataAssociation();
+    // Get Map Mutex -> Map cannot be changed
+  std::unique_lock<std::mutex> lock(map_->mMutexMapUpdate);
 
+  if (state_ == FrontEndState::kTracking) {
+    DataAssociation();  
+  }
+  else if (state_ == FrontEndState::kInitialized) {
+    // State: initialized  
+    state_ = Frontend::kTracking;
+    DataAssociation();
   } else if (state_ == FrontEndState::kNotInitialized) {
     // State: not initialized
     // We try to initialize the camera pose  
@@ -331,6 +364,35 @@ void Frontend::Process(cv::Mat image, double timestamp) {
   last_frame_ = cur_frame_;
 }
 
+bool Frontend::FrameIsKeyFrame() {
+  // TUNE:
+  int th_obs = 3;
+  if (map_->SizeOfKeyframes() <= 2) 
+    th_obs = 2;
+
+  int n_match_reference_kf = 0;
+  auto mps = reference_keyframe_->mappoints();
+  for (auto& mp : mps) {
+    if (mp && !mp->is_bad() && mp->SizeOfObs() >= th_obs)
+      ++n_match_reference_kf;
+  }
+
+  // Condition 1a: More than "MaxFrames" have passed from last keyframe insertion
+  const bool c1_a = cur_frame_->id() >= last_frame_id_as_kf_ + max_keyframe_interval_;
+  // Condition 1b: More than "MinFrames" have passed and Local Mapping is idle
+  const bool c1_b = cur_frame_->id() >= last_frame_id_as_kf_ + min_keyframe_interval_;
+  //Condition 1c: tracking is weak
+  // Condition 2: Few tracked points compared to reference keyframe. Lots of visual odometry compared to map matches.
+  // TUNE: 0.9
+  const bool c2 = n_match_to_localmap_ < n_match_reference_kf * 0.9;
+  return c2; 
+}
+
+void Frontend::CreateKeyFrame() {
+  cur_keyframe_ = std::make_shared<KeyFrame>(*cur_frame_);
+  reference_keyframe_ = cur_keyframe_;
+  last_frame_id_as_kf_ = cur_frame_->id();
+}
 
 void Frontend::set_map(std::shared_ptr<Map> map) {
   map_ = map;
@@ -338,15 +400,6 @@ void Frontend::set_map(std::shared_ptr<Map> map) {
 
 void Frontend::set_camera_model(std::shared_ptr<PinholeCamera> camera_model) {
   camera_model_ = camera_model;
-}
-
-void Frontend::PublishVisualization(cv::Mat& im, std::shared_ptr<Frame>& frame){
-  im = image_.clone();
-  frame = cur_frame_;
-}
-
-void Frontend::PublishKeyFrame(std::shared_ptr<KeyFrame>& keyframe) {
-  keyframe = reference_keyframe_;
 }
 
 } // namespace lslam

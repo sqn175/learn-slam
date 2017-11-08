@@ -18,7 +18,6 @@
 
 namespace lslam {
 
-// Implementation of the multiple producer, multiple consumer 
 template <typename QueueType>
 class ThreadSafeQueue {
 public:
@@ -63,15 +62,13 @@ bool PushBlockingIfFull(const QueueType& value, size_t max_queue_size) {
   return false;
 }
 
-bool PopBlocking(QueueType* value) {
-  CHECK_NOTNULL(value);
+bool PopBlocking(QueueType& value) {
   while (!shut_down_) {
     std::unique_lock<std::mutex> lock(mutex_);
     cond_not_empty_.wait(lock, [&]{return !queue_.empty(); });
-    QueueType _value = queue_.front();
+    value = std::move(queue_.front());
     queue_.pop();
     cond_not_full_.notify_one();
-    *value = _value;
     return true;
   }
   return false;

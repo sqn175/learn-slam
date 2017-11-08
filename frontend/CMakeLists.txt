@@ -5,6 +5,7 @@ project(frontend)
 include_directories(
   ../common
   ../3rdparty/DBoW2/DBoW2
+  ../3rdparty/ORB_SLAM2_modified
   )
 
 add_library(${PROJECT_NAME} STATIC
@@ -18,7 +19,7 @@ map.cc
 guided_matcher.cc
 mapper.cc
 )
-message(STATUS ${PROJECT_SOURCE_DIR})
+
 target_link_libraries(${PROJECT_NAME}
   ${OpenCV_LIBS}
   ORB_SLAM2

@@ -20,12 +20,13 @@ std::pair<B,A> FlipPair(const std::pair<A,B> &p)
     return std::pair<B,A>(p.second, p.first);
 }
 
-// Sorting std::map using value
+// Sorting std::map using value B
+// If B is the same, key A which is inserted in src first is inserted later in dst
 template<typename A, typename B>
 std::multimap<B,A> FlipMap(const std::map<A,B> &src)
 {
     std::multimap<B,A> dst;
-    std::transform(src.begin(), src.end(), std::inserter(dst, dst.begin()), 
+    std::transform(src.rbegin(), src.rend(), std::inserter(dst, dst.begin()), 
                     FlipPair<A,B>);
     return dst;
 }

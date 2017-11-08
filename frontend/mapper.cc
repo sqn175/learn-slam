@@ -6,14 +6,18 @@
  */
 
 #include "mapper.h"
-
+#include <iostream>
 #include <glog/logging.h>
+#include <set>
 
 #include "keyframe.h"
 #include "mappoint.h"
 #include "map.h"
 #include "cv.h"
 #include "guided_matcher.h"
+
+#include "Optimizer.h"
+#include "../3rdparty/ORB_SLAM2_modified/ORBextractor.h"
 
 namespace lslam {
 
@@ -34,9 +38,20 @@ Mapper::Mapper(std::shared_ptr<Map> map,
 }
 
 void Mapper::Process(std::shared_ptr<KeyFrame> keyframe) {
+  cur_keyframe_ = keyframe;
   InsertKeyFrame(keyframe);
-  CullMapPoints();
+  CullMapPoints(keyframe);
   TriangulateNewMapPoints(keyframe);
+  if (map_->SizeOfKeyframes() <= 2) {
+    return;
+  }
+  FuseAndAssociateMapPoints(keyframe);
+  // ORB_SLAM may set mbAbortBA as true to stop local BA
+  // TODO: consider if we need this mechanism
+  bool mbAbortBA = false;
+  ORB_SLAM2::Optimizer::LocalBundleAdjustment(keyframe, map_);
+
+  CullKeyFrames(keyframe);
 }
 
 void Mapper::InsertKeyFrame(std::shared_ptr<KeyFrame> keyframe){
@@ -46,12 +61,12 @@ void Mapper::InsertKeyFrame(std::shared_ptr<KeyFrame> keyframe){
   // Associate the keyframe to mappoints by adding observation
   auto mappoints = keyframe->mappoints();
   for (size_t i = 0; i < mappoints.size(); ++i) {
-    auto mp = mappoints[i];
+    std::shared_ptr<MapPoint> mp = mappoints[i];
     if (mp && !mp->is_bad()) {
       if (!mp->IsObservedByKeyFrame(keyframe)) {
         mp->AddObservation(keyframe, i);
-        mp->UpdateNormalAndDepth();
-        mp->ComputeDistinctiveDescriptors();
+        mp->SetNormalAndDepth();
+        mp->SetDescriptors();
       }
     }
   }
@@ -63,8 +78,31 @@ void Mapper::InsertKeyFrame(std::shared_ptr<KeyFrame> keyframe){
   map_->AddKeyFrame(keyframe);
 }
 
-void Mapper::CullMapPoints() {
-  
+void Mapper::CullMapPoints(std::shared_ptr<KeyFrame> keyframe) {
+  auto it = candidate_mappoints_.begin();
+  // TUNE:
+  const int obs_th = 2;
+  while (it != candidate_mappoints_.end()) {
+    auto mp = *it;
+    if (mp->is_bad()) {
+      // A mappoint is set to be bad in function SetBadFlag() and Replace()
+      // Replace() is called in FuseAndAssociateMapPoints()
+      // SetBadFlag() is called when there is too few observations after erasing some observations in optimization process
+      it = candidate_mappoints_.erase(it);
+    } else if (mp->TrackedRatio() < 0.25) {
+      mp->SetBadFlag();
+      map_->EraseMapPoint(mp);
+      it = candidate_mappoints_.erase(it);
+    } else if ( ((int)keyframe->id() - (int)mp->created_by_keyframe_id())>= obs_th && mp->SizeOfObs() <= obs_th ) {
+      mp->SetBadFlag();
+      map_->EraseMapPoint(mp);
+      it = candidate_mappoints_.erase(it);
+    } else if ( ((int)keyframe->id() - (int)mp->created_by_keyframe_id()) >= obs_th + 1 ) {
+      it = candidate_mappoints_.erase(it);
+    } else {
+      ++it;
+    }
+  }
 }
 
 void Mapper::TriangulateNewMapPoints(std::shared_ptr<KeyFrame> keyframe) {
@@ -97,7 +135,7 @@ void Mapper::TriangulateNewMapPoints(std::shared_ptr<KeyFrame> keyframe) {
     
     // Triangulate each match
     // TODO: can I use cv::TriangulatePoints() first, then check parallax?
-    // 1 -> keyframe, 2 -> neighbor
+    // 1 ->ewhbor
     cv::Mat p3d(4,1,CV_64F);
     // Preallocate SVD matrices on stack
     cv::Mat a(4,4,CV_64F);
@@ -184,11 +222,11 @@ void Mapper::TriangulateNewMapPoints(std::shared_ptr<KeyFrame> keyframe) {
       keyframe->set_mappoint(match.queryIdx, mappoint);
       neighbor->set_mappoint(match.trainIdx, mappoint);
 
-      mappoint->ComputeDistinctiveDescriptors();
-      mappoint->UpdateNormalAndDepth();
+      mappoint->SetDescriptors();
+      mappoint->SetNormalAndDepth();
 
       map_->AddMapPoint(mappoint);
-      triangulated_mappoints_.push_back(mappoint);
+      candidate_mappoints_.push_back(mappoint);
 
       // we will finally optimize these new mappoints
     }
@@ -219,24 +257,25 @@ void Mapper::FuseAndAssociateMapPoints(std::shared_ptr<KeyFrame> keyframe) {
 
   // Search matches by projecting keyframe associated mappoints to neighbor keyframes 
   for (auto& nei : extended_connected_keyframes) {
+
     auto matches = guided_matcher_->ProjectionGuided3D2DMatcher(keyframe->mappoints(),
                                                                 nei, 3.0, GuidedMatcher::kRadiusFromOctave,
-                                                                true, 50, false);
+                                                                true, 50, 0);
 
-    // Fuse mappoint association,
-    // if there is a associated mappoint, replace it, otherwise associate a new mappoint
     for (auto& match : matches) {
       auto mp_kf = keyframe->mappoint(match.queryIdx);
+      if (!mp_kf) // mp_kf may be erased in previous loop 
+        continue;
       auto mp_nei = nei->mappoint(match.trainIdx);
       if (mp_nei) { // Replace, TODO: why replace?
         if (mp_nei->is_bad())
           continue;
-        if (mp_nei->ObservationCount() > mp_kf->ObservationCount()) {
-          mp_kf->ReplaceWith(mp_nei);
-          map_->EraseMapPoint(mp_kf);
+        if (mp_nei->SizeOfObs() > mp_kf->SizeOfObs()) {
+          if (mp_kf->ReplaceWith(mp_nei))
+            map_->EraseMapPoint(mp_kf);
         } else {
-          mp_nei->ReplaceWith(mp_kf);
-          map_->EraseMapPoint(mp_nei);
+          if (mp_nei->ReplaceWith(mp_kf))
+            map_->EraseMapPoint(mp_nei);
         }
       } else { // Associate a new mappoint
         mp_kf->AddObservation(nei, match.trainIdx);
@@ -254,7 +293,7 @@ void Mapper::FuseAndAssociateMapPoints(std::shared_ptr<KeyFrame> keyframe) {
       if (!mp || mp->is_bad()) 
         continue;
 
-      connected_mappoints_.insert(mp);
+      connected_mappoints.insert(mp);
      }
   }
   std::vector<std::shared_ptr<MapPoint>> mps(connected_mappoints.begin(), connected_mappoints.end());
@@ -265,16 +304,16 @@ void Mapper::FuseAndAssociateMapPoints(std::shared_ptr<KeyFrame> keyframe) {
   
   for (auto& match : matches) {
     auto mp_kf = keyframe->mappoint(match.trainIdx);
-    auto mp_nei = mps[match.trainIdx];
+    auto mp_nei = mps[match.queryIdx];
     if (mp_kf) { // Replace, TODO: why replace?
       if (mp_kf->is_bad())
         continue;
-      if (mp_kf->ObservationCount() > mp_nei->ObservationCount()) {
-        mp_nei->ReplaceWith(mp_kf);
-        map_->EraseMapPoint(mp_nei);
+      if (mp_kf->SizeOfObs() > mp_nei->SizeOfObs()) {
+        if (mp_nei->ReplaceWith(mp_kf))
+          map_->EraseMapPoint(mp_nei);
       } else {
-        mp_kf->ReplaceWith(mp_nei);
-        map_->EraseMapPoint(mp_kf);
+        if (mp_kf->ReplaceWith(mp_nei))
+          map_->EraseMapPoint(mp_kf);
       }
     } else { // Associate a new mappoint
       mp_nei->AddObservation(keyframe, match.trainIdx);
@@ -286,14 +325,63 @@ void Mapper::FuseAndAssociateMapPoints(std::shared_ptr<KeyFrame> keyframe) {
   auto mps_kf = keyframe->mappoints();
   for (auto& mp : mps_kf) {
     if (mp && !mp->is_bad()) {
-      mp->ComputeDistinctiveDescriptors();
-      mp->UpdateNormalAndDepth();
+      mp->SetDescriptors();
+      mp->SetNormalAndDepth();
     }
   }
 
   // Update connections in covisibility graph
   keyframe->ConnectToMap();
 
+}
+
+void Mapper::CullKeyFrames(std::shared_ptr<KeyFrame> keyframe) {
+  // Check redundant keyframes (only local keyframes)
+  // A keyframe is considered redundant if the 90% of the MapPoints it sees, are seen
+  // in at least other 3 keyframes (in the same or finer scale)
+  // We only consider close stereo points
+  // TUNE:
+  const int obs_th = 3;
+  auto local_keyframes = keyframe->GetConnectedKeyFrames();
+  for (auto& lkf : local_keyframes) {
+    if (lkf->id() == 0)
+      continue;
+    const auto mappoints = lkf->mappoints();
+    int n_mps = 0;
+    int n_redundant = 0;
+    for (size_t i = 0; i < mappoints.size(); ++i) {
+      auto& mp = mappoints[i];
+      if (mp && !mp->is_bad()) {
+        ++n_mps;
+        if (mp->SizeOfObs() > obs_th) {
+          const int& octave = lkf->undistorted_kp(i).octave;
+          auto obs = mp->observations();
+          int n_obs = 0;
+
+          for (auto& ob : obs) {
+            auto ob_kf = ob.first;
+            if (ob_kf == lkf)
+              continue;
+            const int& octave_ob = ob_kf->undistorted_kp(ob.second).octave;
+            if (octave_ob <= octave +1) {
+              n_obs++;
+              if (n_obs >= obs_th)
+                break;
+            }
+          }
+          if (n_obs >= obs_th) {
+            ++n_redundant;
+          }
+        }
+      }
+    }
+
+    if (n_redundant > 0.9*n_mps) {
+      lkf->SetBadFlag();
+      map_->EraseKeyFrame(lkf);
+    }
+
+  }
 }
 
 } // namespace lslam

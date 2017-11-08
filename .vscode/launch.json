@@ -6,18 +6,18 @@
                 "type": "cppdbg",
                 "request": "launch",
                 "program": "${workspaceRoot}/build/learn_it/slam_app",
-                "args": [],
+                "args": ["GLOG_v=2"],
                 "stopAtEntry": false,
                 "cwd": "${workspaceRoot}",
                 "environment": [],
                 "externalConsole": true,
                 "MIMode": "gdb",
                 "setupCommands": [
-                    // {
-                    //     "description": "Enable pretty-printing for gdb",
-                    //     "text": "-enable-pretty-printing",
-                    //     "ignoreFailures": true
-                    // }
+                    {
+                        "description": "Enable pretty-printing for gdb",
+                        "text": "-enable-pretty-printing",
+                        "ignoreFailures": true
+                    }
                 ],
                 "visualizerFile": "${workspaceRoot}/.vscode/my.natvis",
                 "showDisplayString": true

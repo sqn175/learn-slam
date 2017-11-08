@@ -61,7 +61,7 @@ void Visualizer::Run() {
   T_wc.SetIdentity();
 
   while (!pangolin::ShouldQuit()) {
-    if (frame_queue_.PopBlocking(&vis) == false)
+    if (frame_queue_.PopBlocking(vis) == false)
       return;
 
     // OpenCv image display

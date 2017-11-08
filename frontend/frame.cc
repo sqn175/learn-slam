@@ -14,6 +14,8 @@
 #include "keyframe.h"
 
 namespace lslam {
+
+extern size_t DEBUG_ID;
 typedef DBoW2::TemplatedVocabulary<DBoW2::FORB::TDescriptor, DBoW2::FORB> ORBVocabulary;
   
 Frame::Frame() {
@@ -162,8 +164,9 @@ void Frame::set_outlier(size_t idx, bool flag) {
 }
 
 
-void Frame::set_mappoint( size_t idx, std::shared_ptr<MapPoint> landmark) {
-  mappoints_[idx] = landmark;
+void Frame::set_mappoint( size_t idx, std::shared_ptr<MapPoint> mp) {
+  mappoints_[idx] = mp;
+  LOG_IF(INFO,mp&& mp->id()==DEBUG_ID) << "Mappoint " << DEBUG_ID << " was mathced to frame id = " << id_ << " at idx = " <<idx;
 }
 
 std::shared_ptr<MapPoint> Frame::mappoint(size_t idx) const {
@@ -288,6 +291,9 @@ void Frame::ConnectToMap() {
 }
 
 void Frame::EraseMapPoint(const size_t& idx) {
+  // test
+  if (idx == 1685)
+    std::cout << "mappoint:"<< mappoints_[idx]->id()<<" erased."<<std::endl;
   mappoints_[idx].reset();
 }
 

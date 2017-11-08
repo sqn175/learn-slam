@@ -36,7 +36,7 @@ public:
   void SetupGuided2D2DMatcher(std::shared_ptr<Frame> query_frame);
   std::vector<cv::DMatch> Guided2D2DMatcher(std::shared_ptr<Frame> train_frame, 
                                             const int r, const float dist_th,
-                                            const bool use_ratio_test, const float ratio, 
+                                            const float ratio, 
                                             const bool check_rotation );
   // 3d-2d matcher
   std::vector<cv::DMatch> ProjectionGuided3D2DMatcher(std::vector<std::shared_ptr<MapPoint>> query_mappoints, 
@@ -44,19 +44,27 @@ public:
                                                       const double radius_factor, RadiusFlag flag,
                                                       const bool check_proj_error,
                                                       const double dist_th, 
-                                                      const bool use_ratio_test, const float ratio = 0.8);
+                                                      const float ratio);
 
-  std::vector<cv::DMatch> DbowGuided2D2DMatcher(std::shared_ptr<Frame> query_frame, 
+  std::vector<cv::DMatch> ProjectionGuided3D2DMatcher(std::vector<std::shared_ptr<MapPoint>> query_mappoints, 
+                                                      std::shared_ptr<Frame> train_frame, 
+                                                      const double radius_factor, RadiusFlag flag,
+                                                      const bool check_proj_error,
+                                                      const double dist_th, 
+                                                      const float ratio,
+                                                      std::vector<size_t>& query_indices);                                        
+
+  std::vector<cv::DMatch> DbowGuided2D2DMatcher(std::shared_ptr<KeyFrame> query_frame, 
                                                 std::shared_ptr<Frame> train_frame, 
                                                 const double dist_th, 
                                                 const bool check_rotation,
-                                                const bool use_ratio_test, const float ratio=0.7);
+                                                const float ratio=0.7);
 
-  std::vector<cv::DMatch> DbowAndEpipolarGuided2D2DMatcher(std::shared_ptr<Frame> query_frame, 
-                                                std::shared_ptr<Frame> train_frame, 
+  std::vector<cv::DMatch> DbowAndEpipolarGuided2D2DMatcher(std::shared_ptr<KeyFrame> query_frame, 
+                                                std::shared_ptr<KeyFrame> train_frame, 
                                                 const double dist_th, 
                                                 const bool check_rotation,
-                                                const bool use_ratio_test, const float ratio=0.7);
+                                                const float ratio=0);
 
 public:
   static const int TH_LOW;
@@ -67,7 +75,7 @@ private:
   std::vector<cv::DMatch> Matcher(const cv::Mat& query_descriptors, const std::vector<size_t> query_indices,
                                   const cv::Mat& train_descriptors, const std::vector<std::vector<size_t>> guided_train_indices,
                                   const float dist_th, 
-                                  const bool use_ratio_test = false, const float ratio = -1);
+                                  const float ratio = -1);
 
   std::vector<cv::DMatch> CheckRotation(std::shared_ptr<Frame> query_frame, std::shared_ptr<Frame> train_frame, std::vector<cv::DMatch> matches);
   int DescriptorDist(const cv::Mat& a, const cv::Mat& b);

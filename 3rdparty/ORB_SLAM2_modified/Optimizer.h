@@ -48,10 +48,10 @@ public:
     void static BundleAdjustment(const std::vector<std::shared_ptr<lslam::KeyFrame>> &vpKF, const std::vector<std::shared_ptr<lslam::MapPoint>> &vpMP,
                                  int nIterations = 5, bool *pbStopFlag=NULL, const unsigned long nLoopKF=0,
                                  const bool bRobust = true);
-    void static GlobalBundleAdjustemnt(std::shared_ptr<lslam::Map> pMap, int nIterations=5, bool *pbStopFlag=NULL,
+    void static GlobalBundleAdjustment(std::shared_ptr<lslam::Map> pMap, int nIterations=5, bool *pbStopFlag=NULL,
                                        const unsigned long nLoopKF=0, const bool bRobust = true);
-    // void static LocalBundleAdjustment(KeyFrame* pKF, bool *pbStopFlag, Map *pMap);
-     int static PoseOptimization(std::shared_ptr<lslam::Frame> pFrame);
+    void static LocalBundleAdjustment(std::shared_ptr<lslam::KeyFrame> pKF, std::shared_ptr<lslam::Map> pMap, bool *pbStopFlag=NULL);
+    int static PoseOptimization(std::shared_ptr<lslam::Frame> pFrame);
 
     // // if bFixScale is true, 6DoF optimization (stereo,rgbd), 7DoF otherwise (mono)
     // void static OptimizeEssentialGraph(Map* pMap, KeyFrame* pLoopKF, KeyFrame* pCurKF,

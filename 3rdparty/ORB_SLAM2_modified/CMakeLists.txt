@@ -5,8 +5,8 @@ MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 
 
 include_directories(
-#${PROJECT_SOURCE_DIR}
-${PROJECT_SOURCE_DIR}/include
+${PROJECT_SOURCE_DIR}
+#${PROJECT_SOURCE_DIR}/include
 #${EIGEN3_INCLUDE_DIR}
 ../../frontend/
 ../../common/

@@ -22,7 +22,7 @@
 
 namespace lslam
 {
-
+extern size_t DEBUG_ID;
 const int GuidedMatcher::TH_HIGH = 100;
 const int GuidedMatcher::TH_LOW = 50;
 
@@ -44,11 +44,14 @@ GuidedMatcher::GuidedMatcher(std::shared_ptr<PinholeCamera> camera_model,
 std::vector<cv::DMatch> GuidedMatcher::Matcher(const cv::Mat &query_descriptors, const std::vector<size_t> query_indices,
                                                const cv::Mat &train_descriptors, const std::vector<std::vector<size_t>> guided_train_indices,
                                                const float dist_th,
-                                               const bool use_ratio_test, const float ratio)
+                                               const float ratio)
 {
   int n = query_descriptors.rows;
   CHECK(n == query_indices.size() && n == guided_train_indices.size());
   CHECK(query_descriptors.cols == train_descriptors.cols);
+  bool use_ratio_test = false;
+  if (ratio > 0 && ratio < 1)
+    use_ratio_test = true;
   // trainIdx equal -1 means this is a invalid matche
   auto matches = std::vector<cv::DMatch>(n, cv::DMatch(-1, -1, std::numeric_limits<float>::max()));
   auto inv_matches = std::vector<cv::DMatch>(train_descriptors.rows, cv::DMatch(-1, -1, std::numeric_limits<float>::max()));
@@ -108,11 +111,13 @@ std::vector<cv::DMatch> GuidedMatcher::Matcher(const cv::Mat &query_descriptors,
     // We get a match, it should be one to one
     cv::DMatch inv_match = inv_matches[train_idx];
     if (inv_match.trainIdx >= 0)
-    {
-      if (inv_match.distance < min_dist)
-      {
+    {// If this match is two to one 
+      if (inv_match.distance <= min_dist)
+      { // The previous match is a good one, we skip this match
         matches[i] = cv::DMatch(i, -1, std::numeric_limits<float>::max());
         continue;
+      } else { // This match is a good one, we erase the previous match to be one to one
+        matches[inv_match.trainIdx] = cv::DMatch(inv_match.trainIdx, -1, std::numeric_limits<float>::max());
       }
     }
     matches[i] = cv::DMatch(i, train_idx, min_dist);
@@ -157,7 +162,7 @@ void GuidedMatcher::SetupGuided2D2DMatcher(std::shared_ptr<Frame> query_frame)
 
 std::vector<cv::DMatch> GuidedMatcher::Guided2D2DMatcher(std::shared_ptr<Frame> train_frame,
                                                          const int radius, const float dist_th,
-                                                         const bool use_ratio_test, const float ratio, const bool check_rotation)
+                                                         const float ratio, const bool check_rotation)
 {
   // Wrap matcher parameters
   std::vector<std::vector<size_t>> guided_train_indices;
@@ -178,7 +183,7 @@ std::vector<cv::DMatch> GuidedMatcher::Guided2D2DMatcher(std::shared_ptr<Frame> 
   // We search
   std::vector<cv::DMatch> matches = Matcher(init_query_descriptors_, init_query_indices_,
                                             train_frame->descriptors(), guided_train_indices,
-                                            dist_th, use_ratio_test, ratio);
+                                            dist_th, ratio);
 
   // Check rotation
   if (check_rotation)
@@ -195,19 +200,23 @@ std::vector<cv::DMatch> GuidedMatcher::Guided2D2DMatcher(std::shared_ptr<Frame> 
   return matches;
 }
 
-std::vector<cv::DMatch> GuidedMatcher::ProjectionGuided3D2DMatcher(std::vector<std::shared_ptr<MapPoint>> query_mappoints,
-                                                                   std::shared_ptr<Frame> train_frame,
-                                                                   const double radius_factor, RadiusFlag flag,
-                                                                   const bool check_proj_error,
-                                                                   const double dist_th,
-                                                                   const bool use_ratio_test, const float ratio)
-{
+std::vector<cv::DMatch> GuidedMatcher::ProjectionGuided3D2DMatcher(std::vector<std::shared_ptr<MapPoint>> query_mappoints, 
+                                                    std::shared_ptr<Frame> train_frame, 
+                                                    const double radius_factor, RadiusFlag flag,
+                                                    const bool check_proj_error,
+                                                    const double dist_th, 
+                                                    const float ratio,
+                                                    std::vector<size_t>& query_indices) {
   // Wrap matcher parameters
   cv::Mat query_descriptors;
-  std::vector<size_t> query_indices;
+  query_indices.clear();
   std::vector<std::vector<size_t>> guided_train_indices;
 
   for (size_t i = 0; i < query_mappoints.size(); ++i) {
+    if (i == 1685 && train_frame->id() == 0) {
+      int i = 0;
+      int j = i;
+    }
     std::shared_ptr<MapPoint> mp = query_mappoints[i];
 
     cv::Mat uv;
@@ -274,17 +283,34 @@ std::vector<cv::DMatch> GuidedMatcher::ProjectionGuided3D2DMatcher(std::vector<s
   // We search
   std::vector<cv::DMatch> matches = Matcher(query_descriptors, query_indices,
                                     train_frame->descriptors(), guided_train_indices,
-                                    dist_th, use_ratio_test, ratio);
+                                    dist_th, ratio);
 
-  return matches;
+  return matches;                                                
+}    
+
+std::vector<cv::DMatch> GuidedMatcher::ProjectionGuided3D2DMatcher(std::vector<std::shared_ptr<MapPoint>> query_mappoints,
+                                                                   std::shared_ptr<Frame> train_frame,
+                                                                   const double radius_factor, RadiusFlag flag,
+                                                                   const bool check_proj_error,
+                                                                   const double dist_th,
+                                                                   const float ratio)
+{
+  std::vector<size_t> query_indices;
+  return ProjectionGuided3D2DMatcher(query_mappoints, 
+                                    train_frame, 
+                                    radius_factor,flag,
+                                    check_proj_error,
+                                    dist_th, 
+                                    ratio,
+                                    query_indices);
 }
 
 // TODO: not pure 2d2d matcher, assuming associated mappoint not null
-std::vector<cv::DMatch> GuidedMatcher::DbowGuided2D2DMatcher(std::shared_ptr<Frame> query_frame,
+std::vector<cv::DMatch> GuidedMatcher::DbowGuided2D2DMatcher(std::shared_ptr<KeyFrame> query_frame,
                                                              std::shared_ptr<Frame> train_frame,
                                                              const double dist_th,
                                                              const bool check_rotation,
-                                                             const bool use_ratio_test, const float ratio)
+                                                             const float ratio)
 {
 
   // Wrap matcher parameters
@@ -318,6 +344,12 @@ std::vector<cv::DMatch> GuidedMatcher::DbowGuided2D2DMatcher(std::shared_ptr<Fra
         if (!query_mappoint || query_mappoint->is_bad())
           continue;
 
+        // test
+        if (query_mappoint->id() == DEBUG_ID) {
+          LOG(INFO) << "In tracking thread, DbowGuided2D2DMatcher {q_kf_id, f_id}:{"
+                    << query_frame->id() << "," << train_frame->id() << "}, queried mappoint " << DEBUG_ID;
+        }
+
         query_descriptors.push_back(query_frame_descriptors.row(query_index));
         query_indices.push_back(query_index);
         guided_train_indices.push_back(node_train_indices);
@@ -339,7 +371,7 @@ std::vector<cv::DMatch> GuidedMatcher::DbowGuided2D2DMatcher(std::shared_ptr<Fra
   // We perform guided match
   auto matches = Matcher(query_descriptors, query_indices,
                          train_frame->descriptors(), guided_train_indices,
-                         dist_th, use_ratio_test, ratio);
+                         dist_th, ratio);
 
   if (check_rotation)
     matches = CheckRotation(query_frame, train_frame, matches);
@@ -347,13 +379,75 @@ std::vector<cv::DMatch> GuidedMatcher::DbowGuided2D2DMatcher(std::shared_ptr<Fra
   return matches;
 }
 
-std::vector<cv::DMatch> GuidedMatcher::DbowAndEpipolarGuided2D2DMatcher(std::shared_ptr<Frame> query_frame, 
-                                                          std::shared_ptr<Frame> train_frame, 
+std::vector<cv::DMatch> GuidedMatcher::DbowAndEpipolarGuided2D2DMatcher(std::shared_ptr<KeyFrame> query_frame, 
+                                                          std::shared_ptr<KeyFrame> train_frame, 
                                                           const double dist_th, 
                                                           const bool check_rotation,
-                                                          const bool use_ratio_test, const float ratio) {
+                                                          const float ratio) {
 
-  auto matches = DbowGuided2D2DMatcher(query_frame, train_frame, dist_th, check_rotation, use_ratio_test, ratio);
+  // Wrap matcher parameters
+  cv::Mat query_descriptors;
+  std::vector<size_t> query_indices;
+  std::vector<std::vector<size_t>> guided_train_indices;
+
+  cv::Mat query_frame_descriptors = query_frame->descriptors();
+
+  // Compute DBow
+  query_frame->ComputeBoW();
+  train_frame->ComputeBoW();
+  // DBoW guided
+  auto query_feat_vec = query_frame->feature_vector();
+  auto train_feat_vet = train_frame->feature_vector();
+  auto query_it = query_feat_vec.begin();
+  auto query_end = query_feat_vec.end();
+  auto train_it = train_feat_vet.begin();
+  auto train_end = train_feat_vet.end();
+
+  while (query_it != query_end && train_it != train_end)
+  {
+    if (query_it->first == train_it->first)
+    {
+      const std::vector<size_t> node_query_indices(query_it->second.begin(), query_it->second.end());
+      std::vector<size_t> node_train_indices(train_it->second.begin(), train_it->second.end());
+      // Skip the descriptor with mappoint already associated
+      node_train_indices.erase(std::remove_if(node_train_indices.begin(), node_train_indices.end(),
+                                              [&train_frame](size_t& idx) -> bool {
+                                                return train_frame->mappoint(idx) != nullptr;
+                                              }),
+                               node_train_indices.end());
+      for (auto &query_index : node_query_indices)
+      {
+        // Skip the descriptor with mappoint already associated
+        auto query_mappoint = query_frame->mappoint(query_index);
+        if (query_mappoint)
+          continue;
+
+        query_descriptors.push_back(query_frame_descriptors.row(query_index));
+        query_indices.push_back(query_index);
+        guided_train_indices.push_back(node_train_indices);
+      }
+
+      query_it++;
+      train_it++;
+    }
+    else if (query_it->first < train_it->first)
+    {
+      query_it = query_feat_vec.lower_bound(train_it->first);
+    }
+    else
+    {
+      train_it = train_feat_vet.lower_bound(query_it->first);
+    }
+  }
+
+  // We perform guided match
+  auto matches = Matcher(query_descriptors, query_indices,
+                         train_frame->descriptors(), guided_train_indices,
+                         dist_th, ratio);
+
+  if (check_rotation)
+    matches = CheckRotation(query_frame, train_frame, matches);
+
   // Recover Fundamental Matrix according to poses
   cv::Mat F = RecoverFundamental(query_frame, train_frame);
   // Compute epipole in second image
