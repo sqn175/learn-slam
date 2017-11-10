@@ -688,11 +688,6 @@ void Optimizer::LocalBundleAdjustment(std::shared_ptr<lslam::KeyFrame> pKF, std:
             std::shared_ptr<lslam::MapPoint> pMPi = vToErase[i].second;
             pKFi->EraseMapPoint(pMPi);
             pMPi->EraseObservation(pKFi);
-            // If only 2 observations or less, discard point
-            if (pMPi->SizeOfObs() <= 2) {
-                pMPi->SetBadFlag();
-                pMap->EraseMapPoint(pMPi);
-            }
         }
     }
 

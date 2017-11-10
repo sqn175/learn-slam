@@ -22,7 +22,7 @@
 
 namespace lslam
 {
-extern size_t DEBUG_ID;
+extern int DEBUG_ID;
 const int GuidedMatcher::TH_HIGH = 100;
 const int GuidedMatcher::TH_LOW = 50;
 

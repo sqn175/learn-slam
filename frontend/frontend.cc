@@ -116,8 +116,8 @@ bool Frontend::DataAssociationBootstrap() {
   LOG(INFO) << "New Map created with " << matches.size() << " points";
   // Create Map
   // - Wrap keyframes and insert in the map
-  init_keyframe_ = std::make_shared<KeyFrame>(*init_frame_);
-  cur_keyframe_ = std::make_shared<KeyFrame>(*cur_frame_);
+  init_keyframe_ = std::make_shared<KeyFrame>(*init_frame_, map_);
+  cur_keyframe_ = std::make_shared<KeyFrame>(*cur_frame_, map_);
   // init_keyframe->ComputeBoW();
   // cur_keyframe->ComputeBoW();
   map_->AddKeyFrame(init_keyframe_);
@@ -128,9 +128,7 @@ bool Frontend::DataAssociationBootstrap() {
     cv::Mat point_3d(points_3d[match.queryIdx]);
     // Wrap CV_32F to CV_64F
     point_3d.convertTo(point_3d, CV_64F);
-    auto mappoint = std::make_shared<MapPoint>(point_3d, cur_keyframe_);
-    // Insert in the map
-    map_->AddMapPoint(mappoint);
+    auto mappoint = std::make_shared<MapPoint>(point_3d, cur_keyframe_, map_);
 
     // Associate mappoint to frame
     init_frame_->set_mappoint(match.queryIdx, mappoint);
@@ -150,11 +148,12 @@ bool Frontend::DataAssociationBootstrap() {
     mappoint->AddObservation(init_keyframe_, match.queryIdx);
     mappoint->AddObservation(cur_keyframe_, match.trainIdx);
 
+    map_->AddMapPoint(mappoint);
   }
 
   // Associate keyframe to keyframe
-  init_keyframe_->ConnectToMap();
-  cur_keyframe_->ConnectToMap();
+  init_keyframe_->SetConnectedKeyFrames();
+  cur_keyframe_->SetConnectedKeyFrames();
 
   // Bundle Adjustment
   ORB_SLAM2::Optimizer::GlobalBundleAdjustment(map_, 20);
@@ -268,7 +267,7 @@ bool Frontend::TrackToLastKeyFrame() {
 bool Frontend::TrackToLocalMap() {
   // Step1. Retrive local map
   //        Local map consists of mappoints and keyframes associated to current frame
-  cur_frame_->ConnectToMap();
+  cur_frame_->SetConnectedKeyFrames();
   // TODO: consider whether we should store the connected mappoints in the Frame class
   // We do not search the mappoints already associated to cur_frame keypoints 
   // in the previous TrackToLastFrame or TrackToLastKeyFrame functions
@@ -281,20 +280,14 @@ bool Frontend::TrackToLocalMap() {
                                                              false, 100, 0.8, projectable_indices);
   // Update mappoint statics
   auto mps = cur_frame_->mappoints();
-  //test
-  int idx = 0;
-  for (auto& mp : mps) {
+  for (size_t i = 0; i < mps.size(); ++i) {
+    auto mp = mps[i];
     if (mp) {
       if (!mp->is_bad())
         mp->IncreaseCntProjected();
       else {
-      // test
-        if (idx == 1685)
-          std::cout << "mappoint:"<< mp->id()<<" erased."<<std::endl;
-        mp.reset(); 
+        cur_frame_->EraseMapPoint(i);
       }
-      //test
-      ++idx;
     }
   }
   for (auto& idx : projectable_indices) {
@@ -389,7 +382,7 @@ bool Frontend::FrameIsKeyFrame() {
 }
 
 void Frontend::CreateKeyFrame() {
-  cur_keyframe_ = std::make_shared<KeyFrame>(*cur_frame_);
+  cur_keyframe_ = std::make_shared<KeyFrame>(*cur_frame_, map_);
   reference_keyframe_ = cur_keyframe_;
   last_frame_id_as_kf_ = cur_frame_->id();
 }

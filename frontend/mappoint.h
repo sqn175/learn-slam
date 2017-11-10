@@ -22,15 +22,16 @@ namespace lslam {
 
 class Frame;
 class KeyFrame;
+class Map;
 
 /**
  * @brief Thread-safe MapPoint class
  * 
  */
-class MapPoint {
+class MapPoint : public std::enable_shared_from_this<MapPoint>{
 public:
   // Default Constructor
-  MapPoint(const cv::Mat& pt_world, std::shared_ptr<KeyFrame> ref_kf);
+  MapPoint(const cv::Mat& pt_world, std::shared_ptr<KeyFrame> ref_kf, const std::shared_ptr<Map>& map);
   // Forbid copy constructor 
   MapPoint(const MapPoint&) = delete;
   // Forbid assignment operator
@@ -119,7 +120,7 @@ private:
 
   // If is bad, the allocated memory will be deleted after the smart pointer's count decreases to 0.
   std::atomic<bool> is_bad_; ///< Indicate that this mappoint is invalid.
-  
+  std::shared_ptr<Map> map_;
   // Provide concurrency on observations_, descriptors_, ref_keyframe_, cnt_projected_, cnt_tracked_
   mutable std::mutex mutex_; 
   // Provide concurrency on pt_world_, normal_vector_, max_distance_, min_distance_,

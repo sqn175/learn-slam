@@ -8,6 +8,7 @@
 #include <glog/logging.h>
 
 #include "frame.h"
+#include "map.h"
 #include "keyframe.h"
 #include <limits>
 
@@ -15,7 +16,7 @@ namespace lslam {
 
 std::mutex MapPoint::mGlobalMutex;
 // test
-size_t DEBUG_ID = 19;
+int DEBUG_ID = -1;
 
 /**
  * @brief Default constructor of MapPoint. In monocular case, a mappoint is created by 
@@ -25,19 +26,20 @@ size_t DEBUG_ID = 19;
  * @param ref_kf Reference keyframe which triangulate the mappoint.
  * 
  */
-MapPoint::MapPoint(const cv::Mat& pt_world, std::shared_ptr<KeyFrame> ref_kf)
+MapPoint::MapPoint(const cv::Mat& pt_world, std::shared_ptr<KeyFrame> ref_kf, const std::shared_ptr<Map>& map)
   : created_by_keyframe_id_(ref_kf->id())
   , is_bad_(false)
   , pt_world_(pt_world) 
   , ref_keyframe_(ref_kf)
   , cnt_projected_(1)
-  , cnt_tracked_(1) {
+  , cnt_tracked_(1)
+  , map_(map) {
 
   // Assign a global unique id 
   static unsigned long unique_id = 0;
   id_ = unique_id++;
 
-  LOG_IF(INFO, id_==DEBUG_ID) << "Mappoint " << DEBUG_ID << " was created.";
+  DLOG_IF(INFO, id_==DEBUG_ID) << "Mappoint " << DEBUG_ID << " was created.";
 }
 
 MapPoint::~MapPoint() {
@@ -139,8 +141,18 @@ bool MapPoint::AddObservation(std::shared_ptr<KeyFrame> keyframe, int keypoint_i
 size_t MapPoint::EraseObservation(std::shared_ptr<KeyFrame> keyframe) {
   LOG_IF(INFO, id_==DEBUG_ID) << "Mappoint " << DEBUG_ID << " erase observation: kf_id = "
                             << keyframe->id();
+
   std::unique_lock<std::mutex> lock(mutex_);
   size_t i = observations_.erase(keyframe);
+  int obs_size = observations_.size();
+  lock.unlock();
+  
+  if (obs_size <= 2) {
+    SetBadFlag();
+    return i;
+  } 
+
+  std::unique_lock<std::mutex> lock1(mutex_);
   if (ref_keyframe_ == keyframe) {
     // TODO: this is a casual reference, can we select a better one?
     // TODO: check observations_ have at least one element
@@ -356,6 +368,10 @@ bool MapPoint::ReplaceWith(std::shared_ptr<MapPoint> mp) {
   mp->IncreaseCntTracked(cnt_tracked());
   mp->SetDescriptors();
   // TODO: need to update depth? 
+
+  // Erase this mappoint in the map
+  map_->EraseMapPoint(shared_from_this());
+
   return true;
 }
 
@@ -369,7 +385,8 @@ void MapPoint::SetBadFlag() {
     kf->EraseMapPoint(ob.second);
   }
 
-  // TODO: erase this mappoint in the map
+  // erase this mappoint in the map
+  map_->EraseMapPoint(shared_from_this());
 }
 
 void MapPoint::set_pt_world(const cv::Mat& pt_world) {

@@ -3,21 +3,30 @@
  * Date: 2017-08-25
  */
 #include <iostream>
+#include <string>
 #include "keyframe.h"
 
 #include <glog/logging.h>
 #include "mappoint.h"
 
 #include "../common/helper.h"
+#include "map.h"
 
 namespace lslam {
 
-size_t DEBUG_KF_ID = 3;
+int DEBUG_KF_ID = -1;
 
-KeyFrame::KeyFrame(const Frame& frame)
+/**
+ * @brief Construct a keyframe from a frame, and insert the keyframe to map.
+ *        A deep copy is used, so the keyframe bear no relation to the frame. 
+ * 
+ * @param frame Frame which is set to be a keyframe.
+ */
+KeyFrame::KeyFrame(const Frame& frame, const std::shared_ptr<Map>& map)
   : Frame(frame)
   , is_bad_(false)
-  , is_new_nod_(true) {
+  , is_new_nod_(true)
+  , map_(map) {
   static unsigned long unique_id = 0;
   kf_id_ = unique_id++;
 
@@ -30,81 +39,214 @@ KeyFrame::KeyFrame(const Frame& frame)
 KeyFrame::~KeyFrame() {
   // test
   if (kf_id_ == DEBUG_KF_ID) {
-    LOG(INFO) << "Keyframe " << DEBUG_KF_ID << "was deleted.";
+    DLOG(INFO) << "Keyframe " << DEBUG_KF_ID << "was deleted.";
   }
 }
 
-void KeyFrame::AddConnection(std::shared_ptr<KeyFrame> frame, const int weight) {
+std::vector<std::shared_ptr<MapPoint>> KeyFrame::mappoints() const {
+  std::unique_lock<std::mutex> lock(mutex_mps_);
+  return Frame::mappoints();
+}
+
+std::shared_ptr<MapPoint> KeyFrame::mappoint(size_t idx) const {
+  std::unique_lock<std::mutex> lock(mutex_mps_);
+  return Frame::mappoint(idx);
+}
+
+cv::Mat KeyFrame::T_cw() const {
+  std::unique_lock<std::mutex> lock(mutex_pos_);
+  return Frame::T_cw();
+}
+cv::Mat KeyFrame::T_wc() const {
+  std::unique_lock<std::mutex> lock(mutex_pos_);
+  return Frame::T_wc();
+}
+cv::Mat KeyFrame::o_w() const {
+  std::unique_lock<std::mutex> lock(mutex_pos_);
+  return Frame::o_w();
+}
+cv::Mat KeyFrame::R_cw() const {
+  std::unique_lock<std::mutex> lock(mutex_pos_);
+  return Frame::R_cw();
+}
+cv::Mat KeyFrame::t_cw() const {
+  std::unique_lock<std::mutex> lock(mutex_pos_);
+  return Frame::t_cw();
+}
+
+/**
+ * @brief Set pose matrix of the keyframe.
+ * 
+ * @param T_cw Transformation matrix from world coordinate to camera coordinate
+ */
+void KeyFrame::SetPose(const cv::Mat& T_cw) {
+  std::unique_lock<std::mutex> lock(mutex_pos_);
+  Frame::SetPose(T_cw);
+}
+
+void KeyFrame::set_mappoint(size_t idx, std::shared_ptr<MapPoint> mappoint) {
+  std::unique_lock<std::mutex> lock(mutex_mps_);
+  Frame::set_mappoint(idx, mappoint);
+}
+
+void KeyFrame::EraseMapPoint(const size_t& idx) {
+  std::unique_lock<std::mutex> lock(mutex_mps_);
+  Frame::EraseMapPoint(idx);
+}
+
+/**
+ * @brief Add a keyframe connection to this keyframe and sort all connections.
+ * 
+ * @param frame The connected keyframe.
+ * @param weight Number of mappoints the connected keyframes co-observed.
+ */
+void KeyFrame::AddConnectedKeyFrame(std::shared_ptr<KeyFrame> frame, const int weight) {
+  // test
+  if (kf_id_ == DEBUG_KF_ID) {
+    LOG(INFO) << "Keyframe " << DEBUG_KF_ID << "add a connection {kf_id, weight}: {" 
+              << frame->id() << ", " << weight << "}.";
+  }
+
+  std::unique_lock<std::mutex> lock(mutex_con_);
+  // We insert a new connection, if exists, we update it.
   connected_keyframes_weights_[frame] = weight;
-  // sort
+
+  // Sort connected keyframes according to weight, update sorted_connected_keyframes_
   sorted_connected_keyframes_.clear();
-  auto sorted_connected_keyframes_weights_ = FlipMap(connected_keyframes_weights_);
-  for(auto it = sorted_connected_keyframes_weights_.rbegin(); it != sorted_connected_keyframes_weights_.rend(); ++it) {
+  auto sorted_connected_weights_keyframes = FlipMap(connected_keyframes_weights_);
+  for(auto it = sorted_connected_weights_keyframes.rbegin(); it != sorted_connected_weights_keyframes.rend(); ++it) {
     sorted_connected_keyframes_.push_back(it->second);
   }
 }
 
-void KeyFrame::ConnectToMap() {
-  if (kf_id_==5) {
-    int test = 0;
-    int test1 = test;
+/**
+ * @brief Retrive connected keyframes which co-observe the same mappoints.
+ *        In this way, the keyframe become a node of the covisibility graph and the spanning tree.
+ * 
+ */
+void KeyFrame::SetConnectedKeyFrames() {
+
+  // test
+  if (kf_id_ == DEBUG_KF_ID) {
+    LOG(INFO) << "Keyframe " << DEBUG_KF_ID << "start to setup connections.";
+  }
+  
+  std::map<std::shared_ptr<KeyFrame>, int> connected_kf_w;
+  
+  // Thread-safe copy
+  auto mps = mappoints();
+
+  for(size_t i = 0; i < mps.size(); ++i) {
+    auto mp = mps[i];
+    if (!mp)
+      continue;
+  
+    // TODO: why I need to check is_bad  
+    if (!mp->is_bad()) {
+      auto observations = mp->observations();
+      for (auto& ob : observations) {
+        // This observation keyframe is created from this frame
+        if (ob.first->frame_id() == id_ )
+          continue;
+          connected_kf_w[ob.first]++;
+      }
+    } else {
+      EraseMapPoint(i);
+    }
   }
 
-  connected_keyframes_weights_.clear();
-  sorted_connected_keyframes_.clear();
-  
-  Frame::ConnectToMap();
-
   // If the weight is greater than threshold, we add connection
-  // In case no keyframe counter is over threshold add the one with maximum weight
+  // In case no keyframe counter is beyond threshold add the one with maximum weight
   int max_weight = 0;
   std::shared_ptr<KeyFrame> max_weight_keyframe;
   // TUNE: 15
   int th = 15;
-
-  for (auto& item : direct_connected_keyframes_weights_) {
-    if (item.second > max_weight) {
-      max_weight = item.second;
-      max_weight_keyframe = item.first;
+  
+  for (auto it = connected_kf_w.begin(); it != connected_kf_w.end(); ) {
+    if (it->second > max_weight) {
+      max_weight = it->second;
+      max_weight_keyframe = it->first;
     }
-    if (item.second > th) {
-      connected_keyframes_weights_[item.first] = item.second;
-      item.first->AddConnection(shared_from_this(), item.second);
+    if (it->second <= th) {
+      it = connected_kf_w.erase(it);
+    } else {
+      // Add a connection between keyframes
+      it->first->AddConnectedKeyFrame(shared_from_this(), it->second);
+      ++it;
     }
   }
 
-  if (connected_keyframes_weights_.empty()) {
-    connected_keyframes_weights_[max_weight_keyframe] = max_weight;
-    max_weight_keyframe->AddConnection(shared_from_this(), max_weight);
+  if (connected_kf_w.empty()) {
+    connected_kf_w[max_weight_keyframe] = max_weight;
+    max_weight_keyframe->AddConnectedKeyFrame(shared_from_this(), max_weight);
   }
 
   // sort
-  auto sorted_connected_keyframes_weights_ = FlipMap(connected_keyframes_weights_);
-  for(auto it = sorted_connected_keyframes_weights_.rbegin(); it != sorted_connected_keyframes_weights_.rend(); ++it) {
+  auto sorted_connected_weights_keyframes = FlipMap(connected_kf_w);
+
+  // Thread-safe setting
+  std::unique_lock<std::mutex> lock(mutex_con_);
+
+  connected_keyframes_weights_ = std::move(connected_kf_w);
+
+  sorted_connected_keyframes_.clear();
+  for(auto it = sorted_connected_weights_keyframes.rbegin(); it != sorted_connected_weights_keyframes.rend(); ++it) {
     sorted_connected_keyframes_.push_back(it->second);
   }
 
   // Spanning tree
-  if (is_new_nod_ && sorted_connected_keyframes_weights_.rbegin() != sorted_connected_keyframes_weights_.rbegin()) {
-    std::shared_ptr<KeyFrame> parent_keyframe = sorted_connected_keyframes_weights_.rbegin()->second;
+  if (is_new_nod_ && sorted_connected_weights_keyframes.rbegin() != sorted_connected_weights_keyframes.rend()) {
+    std::shared_ptr<KeyFrame> parent_keyframe = sorted_connected_weights_keyframes.rbegin()->second;
     if (parent_keyframe->id() < id_) {
-      // set parent, TODO: use the addparent interface
       parent_keyframe_ = parent_keyframe;
       parent_keyframe_->AddChild(shared_from_this());
       is_new_nod_ = false;
     }
   }
+
+  // test
+  if (kf_id_ == DEBUG_KF_ID) {
+    auto test_kfs = sorted_connected_keyframes_;
+    std::string test_info;
+    test_info = "Keyframe " + std::to_string(DEBUG_KF_ID) + "initially set connections :";
+    for (auto& kf : test_kfs) {
+      test_info += std::to_string(kf->id()) + "  ";
+    }
+    test_info += "\n parent keyframe: " + std::to_string(parent_keyframe_->id()) + "\n";
+    test_info += "children keyframes: ";
+    for (auto& child : children_keyframes_) {
+      test_info += std::to_string(child->id()) + "  ";
+    }
+    LOG(INFO) << test_info;            
+  }
 }
 
+/**
+ * @brief Add a child keyframe.
+ * 
+ * @param child Child keyframe.
+ */
 void KeyFrame::AddChild(std::shared_ptr<KeyFrame> child) {
+  // test
+  if (kf_id_ == DEBUG_KF_ID) {
+    LOG(INFO) << "Keyframe " << DEBUG_KF_ID << "add a child: "<<child->id();
+  }
+  std::unique_lock<std::mutex> lock(mutex_con_);
   children_keyframes_.insert(child);
 }
 
 void KeyFrame::EraseChild(std::shared_ptr<KeyFrame> child) {
+ // test
+  if (kf_id_ == DEBUG_KF_ID) {
+    LOG(INFO) << "Keyframe " << DEBUG_KF_ID << "erased a child: "<<child->id();
+  }
+
+  std::unique_lock<std::mutex> lock(mutex_con_);
   children_keyframes_.erase(child);
 }
 
 int KeyFrame::GetConnectedWeight(std::shared_ptr<KeyFrame> keyframe) {
+  std::unique_lock<std::mutex> lock(mutex_con_);
   if (connected_keyframes_weights_.count(keyframe)) 
     return connected_keyframes_weights_[keyframe];
   else
@@ -112,6 +254,12 @@ int KeyFrame::GetConnectedWeight(std::shared_ptr<KeyFrame> keyframe) {
 }
 
 void KeyFrame::SetParent(std::shared_ptr<KeyFrame> parent) {
+   // test
+  if (kf_id_ == DEBUG_KF_ID) {
+    LOG(INFO) << "Keyframe " << DEBUG_KF_ID << "set parent : "<<parent->id();
+  }
+
+  std::unique_lock<std::mutex> lock(mutex_con_);
   parent_keyframe_ = parent;
   parent_keyframe_->AddChild(shared_from_this());
 }
@@ -129,13 +277,16 @@ bool KeyFrame::is_bad() const {
 }
 
 std::set<std::shared_ptr<KeyFrame>> KeyFrame::children_keyframes() {
+  std::unique_lock<std::mutex> lock(mutex_con_);
   return children_keyframes_;
 }
 
 std::shared_ptr<KeyFrame> KeyFrame::parent_keyframe() {
+  std::unique_lock<std::mutex> lock(mutex_con_);
   return parent_keyframe_;
 }
 std::vector<std::shared_ptr<KeyFrame>> KeyFrame::GetConnectedKeyFrames(const size_t n) {
+  std::unique_lock<std::mutex> lock(mutex_con_);
   if ( n == 0 || n > sorted_connected_keyframes_.size()) {
     return sorted_connected_keyframes_;
   } else {
@@ -145,13 +296,16 @@ std::vector<std::shared_ptr<KeyFrame>> KeyFrame::GetConnectedKeyFrames(const siz
 
 double KeyFrame::Depth(const cv::Mat& p3d) {
   CHECK(p3d.data && p3d.rows == 3 && p3d.cols == 1);
-  cv::Mat R_wc2 = R_cw_.row(2).t();
-  return R_wc2.dot(p3d) + t_cw_.at<double>(2);
+  cv::Mat R = R_cw();
+  cv::Mat t = t_cw();
+  cv::Mat R_wc2 = R.row(2).t();
+  return R_wc2.dot(p3d) + t.at<double>(2);
 }
 
 double KeyFrame::SceneDepth(const int q){
   std::vector<double> depths;
-  for (auto& mp : mappoints_) {
+  auto mps = mappoints();
+  for (auto& mp : mps) {
     if (mp) {
       // TODO: using frame::depth()
       double depth = Depth(mp->pt_world());
@@ -164,11 +318,10 @@ double KeyFrame::SceneDepth(const int q){
 
 void KeyFrame::EraseMapPoint(std::shared_ptr<MapPoint> mappoint) {
   int idx = mappoint->GetIndexInKeyFrame(shared_from_this());
-  // test
-  if (idx == 1685)
-    std::cout << "mappoint:"<<mappoint->id()<<" erased."<<std::endl;
-  if (idx >= 0)
-    mappoints_[idx].reset();
+  if (idx >= 0) {
+    std::unique_lock<std::mutex> lock(mutex_mps_);
+    Frame::EraseMapPoint(idx);
+  }
 }
 
 void KeyFrame::SetBadFlag() {
@@ -176,13 +329,19 @@ void KeyFrame::SetBadFlag() {
   if (kf_id_ == DEBUG_KF_ID) {
     LOG(INFO) << "Keyframe " << DEBUG_KF_ID << "was set as bad.";
   }
+  // Set bad flag
+  is_bad_ = true;
+
+  std::unique_lock<std::mutex> lock1(mutex_mps_);
+  for (auto& mp : mappoints_)
+  if (mp) // TODO: check if only two observations left and set this mp bad 
+    mp->EraseObservation(shared_from_this());
+  lock1.unlock();
+
+  std::unique_lock<std::mutex> lock2(mutex_con_);
   for (auto& kf : sorted_connected_keyframes_) {
     kf->EraseConnectedKeyFrame(shared_from_this());
   }
-
-  for (auto& mp : mappoints_)
-    if (mp) // TODO: check if only two observations left and set this mp bad 
-      mp->EraseObservation(shared_from_this());
 
   connected_keyframes_weights_.clear();
   sorted_connected_keyframes_.clear();
@@ -240,16 +399,19 @@ void KeyFrame::SetBadFlag() {
   // Update parent 
   parent_keyframe_->EraseChild(shared_from_this());
 
-  is_bad_ = true;
+  // Erase from map
+  map_->EraseKeyFrame(shared_from_this());
 }
 
 void KeyFrame::EraseConnectedKeyFrame(std::shared_ptr<KeyFrame> keyframe) {
+  std::unique_lock<std::mutex> lock(mutex_con_);
   if (connected_keyframes_weights_.count(keyframe)) {
     connected_keyframes_weights_.erase(keyframe);
+
     // sort TODO: wrap this as a function to be called after modification of connected_keyframes_weights_
     sorted_connected_keyframes_.clear();
-    auto sorted_connected_keyframes_weights_ = FlipMap(connected_keyframes_weights_);
-    for(auto it = sorted_connected_keyframes_weights_.rbegin(); it != sorted_connected_keyframes_weights_.rend(); ++it) {
+    auto sorted_connected_weights_keyframes = FlipMap(connected_keyframes_weights_);
+    for(auto it = sorted_connected_weights_keyframes.rbegin(); it != sorted_connected_weights_keyframes.rend(); ++it) {
       sorted_connected_keyframes_.push_back(it->second);
     }
   }

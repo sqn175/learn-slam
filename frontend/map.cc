@@ -8,7 +8,7 @@
 #include "keyframe.h"
 namespace lslam {
 
-extern size_t DEBUG_ID;
+extern int DEBUG_ID;
 
 void Map::AddKeyFrame(std::shared_ptr<KeyFrame> keyframe) {
   std::unique_lock<std::mutex> lock(mutex_);

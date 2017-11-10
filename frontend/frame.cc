@@ -15,7 +15,7 @@
 
 namespace lslam {
 
-extern size_t DEBUG_ID;
+extern int DEBUG_ID;
 typedef DBoW2::TemplatedVocabulary<DBoW2::FORB::TDescriptor, DBoW2::FORB> ORBVocabulary;
   
 Frame::Frame() {
@@ -32,6 +32,9 @@ Frame::Frame(const cv::Mat& image,double timestamp,
 {
   static unsigned long unique_id = 0;
   id_ = unique_id++;
+
+  // test
+  LOG(INFO) << "Frame " << id_;
   
   // Extract ORB
   CHECK(image.data) << "This Frame is not initialized with image";
@@ -83,8 +86,8 @@ Frame::Frame(const Frame& frame)
   , mappoints_(frame.mappoints_), outliers_(frame.outliers_)
   , T_cw_(frame.T_cw_.clone()), R_cw_(frame.R_cw_.clone()), t_cw_(frame.t_cw_.clone()), o_w_(frame.o_w_.clone())
   , T_wc_(frame.T_wc_.clone()), T_cl_(frame.T_cl_.clone())
-  , direct_connected_keyframes_weights_(frame.direct_connected_keyframes_weights_)
-  , connected_mappoints_(frame.connected_mappoints_)
+  , connected_keyframes_weights_(frame.connected_keyframes_weights_)
+  , local_mappoints_(frame.local_mappoints_)
   , range_searcher_(frame.range_searcher_) {
 }
 
@@ -140,10 +143,15 @@ const DBoW2::FeatureVector& Frame::feature_vector() const {
 }
 
 std::set<std::shared_ptr<MapPoint>> Frame::connected_mappoints() const {
-  return connected_mappoints_;
+  return local_mappoints_;
 }
 
-void Frame::SetPose(cv::Mat T_cw) {
+/**
+ * @brief Set pose matrix of the frame.
+ * 
+ * @param T_cw Transformation matrix from world coordinate to camera coordinate
+ */
+void Frame::SetPose(const cv::Mat& T_cw) {
   T_cw_ = T_cw.clone();
   R_cw_ = T_cw.rowRange(0,3).colRange(0,3);
   t_cw_ = T_cw.rowRange(0,3).col(3);
@@ -218,13 +226,15 @@ void Frame::ComputeBoW() {
   }
 }
 
-void Frame::ConnectToMap() {
+void Frame::SetConnectedKeyFrames() {
   // Iterate the mappoints associated to this keyframe, check in which other keyframes are they seen
-  direct_connected_keyframes_weights_.clear();
-  for (auto& mp : mappoints_) {
+  connected_keyframes_weights_.clear();
+
+  for(size_t i = 0; i < mappoints_.size(); ++i) {
+    auto mp = mappoints_[i];
     if (!mp)
       continue;
-    
+  
     // TODO: why I need to check is_bad  
     if (!mp->is_bad()) {
       auto observations = mp->observations();
@@ -232,16 +242,17 @@ void Frame::ConnectToMap() {
         // This observation keyframe is created from this frame
         if (ob.first->frame_id() == id_ )
           continue;
-        direct_connected_keyframes_weights_[ob.first]++;
+        connected_keyframes_weights_[ob.first]++;
       }
     } else {
-      mp.reset();
+      EraseMapPoint(i);
     }
   }
 
+  // TODO: remove this part out, as we dont need to store the connected_mappoints int the Frame class.
   std::set<std::shared_ptr<KeyFrame>> all_connected_keyframes;
   // Consider the neighbors of these direct connected keyframes
-  for (auto& kf_w : direct_connected_keyframes_weights_) {
+  for (auto& kf_w : connected_keyframes_weights_) {
     auto kf = kf_w.first;
     if (kf->is_bad())
       continue;
@@ -272,28 +283,25 @@ void Frame::ConnectToMap() {
   }
 
   // Retrive all mappoints from all connected keyframes
-  connected_mappoints_.clear();
+  local_mappoints_.clear();
   for(auto& kf : all_connected_keyframes) {
     auto mps_of_kf = kf->mappoints();
     for(auto& mp : mps_of_kf) {
       if (!mp || mp->is_bad()) 
         continue;
 
-      connected_mappoints_.insert(mp);
+      local_mappoints_.insert(mp);
      }
   }
   // We erase the mappoints already associated to keypoints 
   // in the previous TrackToLastFrame or TrackToLastKeyFrame functions
   for (auto& mp:mappoints_) {
     if (mp) 
-      connected_mappoints_.erase(mp);
+      local_mappoints_.erase(mp);
   }
 }
 
 void Frame::EraseMapPoint(const size_t& idx) {
-  // test
-  if (idx == 1685)
-    std::cout << "mappoint:"<< mappoints_[idx]->id()<<" erased."<<std::endl;
   mappoints_[idx].reset();
 }
 

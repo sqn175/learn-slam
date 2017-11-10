@@ -55,6 +55,7 @@ void Mapper::Process(std::shared_ptr<KeyFrame> keyframe) {
 }
 
 void Mapper::InsertKeyFrame(std::shared_ptr<KeyFrame> keyframe){
+  // TODO: wrap all these into KeyFrame::init()
   // Compute Bow
   keyframe->ComputeBoW();
 
@@ -72,9 +73,8 @@ void Mapper::InsertKeyFrame(std::shared_ptr<KeyFrame> keyframe){
   }
 
   // Associate the keyframe to already existing keyframes in the map
-  keyframe->ConnectToMap();
+  keyframe->SetConnectedKeyFrames();
 
-  // Insert the keyframe into the map
   map_->AddKeyFrame(keyframe);
 }
 
@@ -91,11 +91,9 @@ void Mapper::CullMapPoints(std::shared_ptr<KeyFrame> keyframe) {
       it = candidate_mappoints_.erase(it);
     } else if (mp->TrackedRatio() < 0.25) {
       mp->SetBadFlag();
-      map_->EraseMapPoint(mp);
       it = candidate_mappoints_.erase(it);
     } else if ( ((int)keyframe->id() - (int)mp->created_by_keyframe_id())>= obs_th && mp->SizeOfObs() <= obs_th ) {
       mp->SetBadFlag();
-      map_->EraseMapPoint(mp);
       it = candidate_mappoints_.erase(it);
     } else if ( ((int)keyframe->id() - (int)mp->created_by_keyframe_id()) >= obs_th + 1 ) {
       it = candidate_mappoints_.erase(it);
@@ -214,7 +212,7 @@ void Mapper::TriangulateNewMapPoints(std::shared_ptr<KeyFrame> keyframe) {
         continue;
 
       // This triangulated 3d point is valid, we create a new mappoint
-      auto mappoint = std::make_shared<MapPoint>(p3d, keyframe);
+      auto mappoint = std::make_shared<MapPoint>(p3d, keyframe, map_);
 
       mappoint->AddObservation(keyframe, match.queryIdx);
       mappoint->AddObservation(neighbor, match.trainIdx);
@@ -226,6 +224,7 @@ void Mapper::TriangulateNewMapPoints(std::shared_ptr<KeyFrame> keyframe) {
       mappoint->SetNormalAndDepth();
 
       map_->AddMapPoint(mappoint);
+
       candidate_mappoints_.push_back(mappoint);
 
       // we will finally optimize these new mappoints
@@ -271,11 +270,9 @@ void Mapper::FuseAndAssociateMapPoints(std::shared_ptr<KeyFrame> keyframe) {
         if (mp_nei->is_bad())
           continue;
         if (mp_nei->SizeOfObs() > mp_kf->SizeOfObs()) {
-          if (mp_kf->ReplaceWith(mp_nei))
-            map_->EraseMapPoint(mp_kf);
+          mp_kf->ReplaceWith(mp_nei);
         } else {
-          if (mp_nei->ReplaceWith(mp_kf))
-            map_->EraseMapPoint(mp_nei);
+          mp_nei->ReplaceWith(mp_kf);
         }
       } else { // Associate a new mappoint
         mp_kf->AddObservation(nei, match.trainIdx);
@@ -309,11 +306,9 @@ void Mapper::FuseAndAssociateMapPoints(std::shared_ptr<KeyFrame> keyframe) {
       if (mp_kf->is_bad())
         continue;
       if (mp_kf->SizeOfObs() > mp_nei->SizeOfObs()) {
-        if (mp_nei->ReplaceWith(mp_kf))
-          map_->EraseMapPoint(mp_nei);
+        mp_nei->ReplaceWith(mp_kf);
       } else {
-        if (mp_kf->ReplaceWith(mp_nei))
-          map_->EraseMapPoint(mp_kf);
+        mp_kf->ReplaceWith(mp_nei);
       }
     } else { // Associate a new mappoint
       mp_nei->AddObservation(keyframe, match.trainIdx);
@@ -331,7 +326,7 @@ void Mapper::FuseAndAssociateMapPoints(std::shared_ptr<KeyFrame> keyframe) {
   }
 
   // Update connections in covisibility graph
-  keyframe->ConnectToMap();
+  keyframe->SetConnectedKeyFrames();
 
 }
 
@@ -378,7 +373,6 @@ void Mapper::CullKeyFrames(std::shared_ptr<KeyFrame> keyframe) {
 
     if (n_redundant > 0.9*n_mps) {
       lkf->SetBadFlag();
-      map_->EraseKeyFrame(lkf);
     }
 
   }

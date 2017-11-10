@@ -54,9 +54,9 @@ public:
   const std::vector<cv::KeyPoint>& undistorted_kps() const;
   const cv::KeyPoint& undistorted_kp(size_t idx) const;
   const cv::Mat& descriptors() const;
-  std::vector<std::shared_ptr<MapPoint>> mappoints() const;
+  virtual std::vector<std::shared_ptr<MapPoint>> mappoints() const;
   std::shared_ptr<RangeSearcher> range_searcher() const;
-  std::shared_ptr<MapPoint> mappoint(size_t idx) const; 
+  virtual std::shared_ptr<MapPoint> mappoint(size_t idx) const; 
   std::shared_ptr<PinholeCamera> camera_model() const;
   std::shared_ptr<ORB_SLAM2::ORBextractor> orb_extractor() const;
   bool outlier(size_t) const;
@@ -64,17 +64,17 @@ public:
   const DBoW2::FeatureVector& feature_vector() const;
   std::set<std::shared_ptr<MapPoint>> connected_mappoints() const;
 
-  void SetPose(cv::Mat T_cw);
-  void set_mappoint(size_t idx, std::shared_ptr<MapPoint> mappoint);
+  virtual void SetPose(const cv::Mat& T_cw);
+  virtual void set_mappoint(size_t idx, std::shared_ptr<MapPoint> mappoint);
   void set_T_cl(cv::Mat T_cl);
   void set_outlier(size_t idx, bool flag);
 
-  cv::Mat T_cw() const;
-  cv::Mat T_wc() const;
+  virtual cv::Mat T_cw() const;
+  virtual cv::Mat T_wc() const;
   cv::Mat T_cl() const;
-  cv::Mat o_w() const;
-  cv::Mat R_cw() const;
-  cv::Mat t_cw() const;
+  virtual cv::Mat o_w() const;
+  virtual cv::Mat R_cw() const;
+  virtual cv::Mat t_cw() const;
 
   // Project world coordinate 3d point to image coordinate 3d point
   cv::Mat Project(const cv::Mat pt3d_w);
@@ -83,13 +83,13 @@ public:
 
   void ComputeBoW();
   // 
-  virtual void ConnectToMap();
+  virtual void SetConnectedKeyFrames();
 
-  void EraseMapPoint(const size_t& idx);
+  virtual void EraseMapPoint(const size_t& idx);
     
 protected:
   // === Raw data ===
-  double timestamp_; // timestamp of this frame
+  double timestamp_; ///< timestamp of this frame
   unsigned long id_; // id of this frame
   // === Raw data ===
 
@@ -124,9 +124,9 @@ protected:
   cv::Mat T_cl_;
   // === State ===
 
-  // Associated Keyframes and mappoints(Local map), used for local track and visualization
-  std::map<std::shared_ptr<KeyFrame>, int> direct_connected_keyframes_weights_;// Covisibility
-  std::set<std::shared_ptr<MapPoint>> connected_mappoints_; 
+  // Connected Keyframes and mappoints(Local map), used for local track and visualization
+  std::map<std::shared_ptr<KeyFrame>, int> connected_keyframes_weights_;// Covisibility
+  std::set<std::shared_ptr<MapPoint>> local_mappoints_; 
 
   // Build feature points gridding range searcher
   std::shared_ptr<RangeSearcher> range_searcher_;
