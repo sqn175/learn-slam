@@ -90,11 +90,12 @@ public:
 
   bool is_bad() const;
 
-
   void IncreaseCntProjected(int n = 1);
   void IncreaseCntTracked(int n = 1);
   double TrackedRatio();
 
+  std::shared_ptr<MapPoint> replaced_mp() const;
+  void set_replaced_mp(std::shared_ptr<MapPoint> mp);
   
 private:
   unsigned long id_; // ID of the map point
@@ -120,8 +121,9 @@ private:
 
   // If is bad, the allocated memory will be deleted after the smart pointer's count decreases to 0.
   std::atomic<bool> is_bad_; ///< Indicate that this mappoint is invalid.
+  std::shared_ptr<MapPoint> replaced_mp_;
   std::shared_ptr<Map> map_;
-  // Provide concurrency on observations_, descriptors_, ref_keyframe_, cnt_projected_, cnt_tracked_
+  // Provide concurrency on observations_, descriptors_, ref_keyframe_, cnt_projected_, cnt_tracked_, replaced_mp_
   mutable std::mutex mutex_; 
   // Provide concurrency on pt_world_, normal_vector_, max_distance_, min_distance_,
   mutable std::mutex mutex2_;

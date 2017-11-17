@@ -53,6 +53,8 @@ public:
   // Output: Camera world coordinate pose
   bool AddMonoImage(const cv::Mat &image, const double &timestamp);
 
+  void ShutDown();
+
 private:
   void FrameConsumerLoop();
   void VisualizationLoop();
@@ -72,9 +74,9 @@ private:
   std::shared_ptr<Map> map_;
   // Queues shared by multi-threads
   // - Camera Measurement input queues
-  ThreadSafeQueue<RawData> camera_meas_received_;
+  ThreadSafeQueue<RawData> input_images_;
   // - Tracked result queues, ready to be displayed
-  ThreadSafeQueue<VisualizedData> camera_meas_visualized_;
+  std::shared_ptr<ThreadSafeQueue<VisualizedData>> visualization_data_;
   // - Keyframes to be optimized
   ThreadSafeQueue<std::shared_ptr<KeyFrame>> keyframes_;
 

@@ -349,6 +349,7 @@ bool MapPoint::ReplaceWith(std::shared_ptr<MapPoint> mp) {
     return false;
 
   is_bad_ = true;
+  set_replaced_mp(mp);
   auto obs = observations();
   // This mappoint will be erased, so we need to update the 
   // keyframes observing this mappoint
@@ -415,5 +416,14 @@ double MapPoint::TrackedRatio() {
   return (double)cnt_tracked_ / cnt_projected_;
 }
 
+std::shared_ptr<MapPoint> MapPoint::replaced_mp() const {
+  std::unique_lock<std::mutex> lock(mutex_);
+  return replaced_mp_;
+}
+
+void MapPoint::set_replaced_mp(std::shared_ptr<MapPoint> mp) {
+  std::unique_lock<std::mutex> lock(mutex_);
+  replaced_mp_ = mp;
+}
 
 } // namespace lslam

@@ -34,17 +34,27 @@ ThreadSafeQueue() {
   cond_not_full_.notify_all();
 }
 
-size_t Size() const {
+void ShutDown() {
+  shut_down_ = true;
+  cond_not_empty_.notify_all();
+  cond_not_full_.notify_all();
+}
+
+void Resume() {
+  shut_down_ = false;
+  cond_not_empty_.notify_all();
+  cond_not_full_.notify_all();
+}
+
+size_t Size() {
   std::unique_lock<std::mutex> lock(mutex_);
   size_t size = queue_.size();
-  lock.unlock();
   return size;
 }
 
-bool Empty() const {
+bool Empty() {
   std::unique_lock<std::mutex> lock(mutex_);
   bool empty = queue_.empty();
-  lock.unlock();
   return empty;
 }
 
@@ -52,10 +62,19 @@ bool Empty() const {
 bool PushBlockingIfFull(const QueueType& value, size_t max_queue_size) {
   while (!shut_down_) {
     std::unique_lock<std::mutex> lock(mutex_);
-    cond_not_full_.wait(lock, [&]{return queue_.size() < max_queue_size; });
+    size_t size = queue_.size();
+    if (size >= max_queue_size) {
+      cond_not_full_.wait(lock);
+    }
+    if (size >= max_queue_size) {
+      // A spurious wakeup
+      //lock.unlock();
+      continue;
+    }
     // Push to queue
     queue_.push(value);
     // Signal other thread that queue is available
+    //lock.unlock();
     cond_not_empty_.notify_one();
     return true;
   }
@@ -65,13 +84,30 @@ bool PushBlockingIfFull(const QueueType& value, size_t max_queue_size) {
 bool PopBlocking(QueueType& value) {
   while (!shut_down_) {
     std::unique_lock<std::mutex> lock(mutex_);
-    cond_not_empty_.wait(lock, [&]{return !queue_.empty(); });
+    if (queue_.empty()) {
+      cond_not_empty_.wait(lock);
+    }
+    if (queue_.empty()) {
+      //lock.unlock();
+      continue;
+    }
     value = std::move(queue_.front());
     queue_.pop();
+    //lock.unlock();
     cond_not_full_.notify_one();
     return true;
   }
   return false;
+}
+
+bool PopNonBlocking(QueueType& value) {
+  std::unique_lock<std::mutex> lock(mutex_);
+  if (queue_.empty()) {
+    return false;
+  }
+  value = std::move(queue_.front());
+  queue_.pop();
+  return true;
 }
 
 private:

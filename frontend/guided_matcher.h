@@ -44,7 +44,7 @@ public:
                                                       const double radius_factor, RadiusFlag flag,
                                                       const bool check_proj_error,
                                                       const double dist_th, 
-                                                      const float ratio);
+                                                      const float ratio = 0);
 
   std::vector<cv::DMatch> ProjectionGuided3D2DMatcher(std::vector<std::shared_ptr<MapPoint>> query_mappoints, 
                                                       std::shared_ptr<Frame> train_frame, 
@@ -52,7 +52,15 @@ public:
                                                       const bool check_proj_error,
                                                       const double dist_th, 
                                                       const float ratio,
-                                                      std::vector<size_t>& query_indices);                                        
+                                                      std::vector<size_t>& query_indices); 
+
+  std::vector<cv::DMatch> ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> query_frame, 
+                                                      std::shared_ptr<Frame> train_frame, 
+                                                      const double radius_factor, RadiusFlag flag,
+                                                      const bool check_proj_error,
+                                                      const double dist_th, 
+                                                      const bool check_rotation,
+                                                      const float ratio = 0);                                     
 
   std::vector<cv::DMatch> DbowGuided2D2DMatcher(std::shared_ptr<KeyFrame> query_frame, 
                                                 std::shared_ptr<Frame> train_frame, 

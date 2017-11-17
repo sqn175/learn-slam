@@ -85,7 +85,7 @@ Frame::Frame(const Frame& frame)
   , keypoints_(frame.keypoints_), undistorted_kps_(frame.undistorted_kps_), descriptors_(frame.descriptors_.clone())
   , mappoints_(frame.mappoints_), outliers_(frame.outliers_)
   , T_cw_(frame.T_cw_.clone()), R_cw_(frame.R_cw_.clone()), t_cw_(frame.t_cw_.clone()), o_w_(frame.o_w_.clone())
-  , T_wc_(frame.T_wc_.clone()), T_cl_(frame.T_cl_.clone())
+  , T_wc_(frame.T_wc_.clone())
   , connected_keyframes_weights_(frame.connected_keyframes_weights_)
   , local_mappoints_(frame.local_mappoints_)
   , range_searcher_(frame.range_searcher_) {
@@ -163,10 +163,6 @@ void Frame::SetPose(const cv::Mat& T_cw) {
   o_w_.copyTo(T_wc_.rowRange(0,3).col(3));
 }
 
-void Frame::set_T_cl(cv::Mat T_cl) {
-  T_cl_ = T_cl.clone();
-}
-
 void Frame::set_outlier(size_t idx, bool flag) {
   outliers_[idx] = flag;
 }
@@ -188,10 +184,6 @@ cv::Mat Frame::T_cw() const {
 
 cv::Mat Frame::T_wc() const {
   return T_wc_.clone();
-}
-
-cv::Mat Frame::T_cl() const {
-  return T_cl_.clone();
 }
 
 cv::Mat Frame::o_w() const {

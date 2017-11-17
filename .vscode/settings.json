@@ -47,7 +47,20 @@
         "bitset": "cpp",
         "vector": "cpp",
         "valarray": "cpp",
-        "*.ipp": "cpp"
+        "*.ipp": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp"
     },
-    "window.zoomLevel": -2
+    "window.zoomLevel": -2,
+    "cSpell.words": [
+        "Bextractor",
+        "Dbow",
+        "bextracto",
+        "dists",
+        "epipole",
+        "histo",
+        "invariance",
+        "or",
+        "undistorted"
+    ]
 }

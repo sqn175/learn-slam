@@ -15,6 +15,8 @@
 
 namespace lslam {
 
+// TODO: use singleton design pattern
+
 class PinholeCamera{
 public:
   PinholeCamera() { }

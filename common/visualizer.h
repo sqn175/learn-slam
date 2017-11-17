@@ -8,6 +8,7 @@
 #define COMMON_VISUALIZER_H_
 
 #include <memory>
+#include <chrono>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui.hpp>
@@ -27,7 +28,7 @@ struct VisualizedData {
 
 class Visualizer {
 public:
-  Visualizer(ThreadSafeQueue<VisualizedData>& queue, std::shared_ptr<Map> map);
+  Visualizer(std::shared_ptr<ThreadSafeQueue<VisualizedData>> queue, std::shared_ptr<Map> map);
 
   void Run();
 
@@ -41,12 +42,19 @@ private:
   std::shared_ptr<Map> map_; // Thread_safe map to be drawn
 
   // A reference of camera_meas_visualized_
-  ThreadSafeQueue<VisualizedData>& frame_queue_;
+  std::shared_ptr<ThreadSafeQueue<VisualizedData>> frame_queue_;
+  //ThreadSafeQueue<VisualizedData>& frame_queue_;
   
   // render settings
   bool settings_followcamera;
   bool settings_showlandmarks;
   bool settings_showkeyframes;
+
+  // Fps counter
+  int n_frames_;
+  std::chrono::steady_clock::time_point fps_t_start_;
+  std::chrono::steady_clock::time_point fps_t_end_;
+  std::string fps_str_;
 };
 } // namespace LSLAM
 

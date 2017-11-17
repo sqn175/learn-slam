@@ -66,12 +66,10 @@ public:
 
   virtual void SetPose(const cv::Mat& T_cw);
   virtual void set_mappoint(size_t idx, std::shared_ptr<MapPoint> mappoint);
-  void set_T_cl(cv::Mat T_cl);
   void set_outlier(size_t idx, bool flag);
 
   virtual cv::Mat T_cw() const;
   virtual cv::Mat T_wc() const;
-  cv::Mat T_cl() const;
   virtual cv::Mat o_w() const;
   virtual cv::Mat R_cw() const;
   virtual cv::Mat t_cw() const;
@@ -120,8 +118,7 @@ protected:
   cv::Mat o_w_;  // camera original in world coordinate
   // Camera inverse pose, wc -> camera coordinate to world coordinate
   cv::Mat T_wc_; // inverse transformation matrix
-  // Transformation from last frame to current frame
-  cv::Mat T_cl_;
+
   // === State ===
 
   // Connected Keyframes and mappoints(Local map), used for local track and visualization

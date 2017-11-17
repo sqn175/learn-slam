@@ -213,10 +213,6 @@ std::vector<cv::DMatch> GuidedMatcher::ProjectionGuided3D2DMatcher(std::vector<s
   std::vector<std::vector<size_t>> guided_train_indices;
 
   for (size_t i = 0; i < query_mappoints.size(); ++i) {
-    if (i == 1685 && train_frame->id() == 0) {
-      int i = 0;
-      int j = i;
-    }
     std::shared_ptr<MapPoint> mp = query_mappoints[i];
 
     cv::Mat uv;
@@ -268,7 +264,8 @@ std::vector<cv::DMatch> GuidedMatcher::ProjectionGuided3D2DMatcher(std::vector<s
             proj_error = true;
         }
         // TODO:!train_frame->mappoint(i)
-        return train_kp.octave < octave - 1 || train_kp.octave > octave || proj_error;// || train_frame->mappoint(i); 
+        // TUNE: octave +- 1
+        return train_kp.octave < octave - 1 || train_kp.octave > octave + 1 || proj_error;// || train_frame->mappoint(i); 
       };
 
       indices.erase(std::remove_if(indices.begin(), indices.end(), cull_indices_lambda),
@@ -293,8 +290,8 @@ std::vector<cv::DMatch> GuidedMatcher::ProjectionGuided3D2DMatcher(std::vector<s
                                                                    const double radius_factor, RadiusFlag flag,
                                                                    const bool check_proj_error,
                                                                    const double dist_th,
-                                                                   const float ratio)
-{
+                                                                   const float ratio) {
+
   std::vector<size_t> query_indices;
   return ProjectionGuided3D2DMatcher(query_mappoints, 
                                     train_frame, 
@@ -305,13 +302,34 @@ std::vector<cv::DMatch> GuidedMatcher::ProjectionGuided3D2DMatcher(std::vector<s
                                     query_indices);
 }
 
+std::vector<cv::DMatch> GuidedMatcher::ProjectionGuided3D2DMatcher(std::shared_ptr<Frame> query_frame, 
+                                                                  std::shared_ptr<Frame> train_frame, 
+                                                                  const double radius_factor, RadiusFlag flag,
+                                                                  const bool check_proj_error,
+                                                                  const double dist_th, 
+                                                                  const bool check_rotation,
+                                                                  const float ratio) {
+  
+  std::vector<size_t> query_indices;
+  auto matches = ProjectionGuided3D2DMatcher(query_frame->mappoints(), 
+                                            train_frame, 
+                                            radius_factor,flag,
+                                            check_proj_error,
+                                            dist_th, 
+                                            ratio,
+                                            query_indices);
+  if (check_rotation)
+      matches = CheckRotation(query_frame, train_frame, matches);
+
+  return matches;
+}
+
 // TODO: not pure 2d2d matcher, assuming associated mappoint not null
 std::vector<cv::DMatch> GuidedMatcher::DbowGuided2D2DMatcher(std::shared_ptr<KeyFrame> query_frame,
                                                              std::shared_ptr<Frame> train_frame,
                                                              const double dist_th,
                                                              const bool check_rotation,
-                                                             const float ratio)
-{
+                                                             const float ratio) {
 
   // Wrap matcher parameters
   cv::Mat query_descriptors;

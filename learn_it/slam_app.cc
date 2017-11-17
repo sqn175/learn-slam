@@ -57,7 +57,8 @@ int main(int argc, char **argv){
   std::cout<<"No. images: "<<image_str.size()<<std::endl;
 
   // Feed image to slam system
-  for (int i = 0; i < image_str.size(); ++i) {
+  //for (int i = 0; i < image_str.size(); ++i) {
+  for (int i = 0; i < 90; ++i) {
     cv::Mat image = cv::imread(images_file_name + image_str[i], CV_LOAD_IMAGE_UNCHANGED);
     // test
     if (timestamps[i] < 1403637202188318976/1e9) continue;

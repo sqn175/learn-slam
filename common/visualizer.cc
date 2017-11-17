@@ -8,17 +8,21 @@
 #include "visualizer.h"
 
 #include <vector>
+#include <thread>
 
 #include "map.h"
 #include "keyframe.h"
 #include "mappoint.h"
+#include "timer.h"
 
 namespace lslam {
 
-Visualizer::Visualizer(ThreadSafeQueue<VisualizedData>& queue, std::shared_ptr<Map> map)
+Visualizer::Visualizer(std::shared_ptr<ThreadSafeQueue<VisualizedData>> queue, std::shared_ptr<Map> map)
   : frame_queue_(queue)
-  , map_(map){
+  , map_(map)
+  , n_frames_(0) {
 
+  fps_t_start_ = std::chrono::steady_clock::now();
 }
 
 void Visualizer::Run() {
@@ -61,13 +65,36 @@ void Visualizer::Run() {
   T_wc.SetIdentity();
 
   while (!pangolin::ShouldQuit()) {
-    if (frame_queue_.PopBlocking(vis) == false)
-      return;
+     if (frame_queue_->PopBlocking(vis) == false)
+       return;
 
+//    frame_queue_.PopNonBlocking(vis);
+//    if (!vis.image.data) {
+//      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+//      continue;
+//    }
+    // Update fps
+    ++n_frames_;
+    fps_t_end_ = std::chrono::steady_clock::now();
+    std::chrono::duration<double> milliseconds =
+        std::chrono::duration_cast<std::chrono::duration<double>>(fps_t_end_ - fps_t_start_);
+    
+    if (milliseconds.count() > 0.3 || n_frames_ > 10) {
+      double fps = n_frames_ / milliseconds.count();
+      n_frames_ = 0;
+      fps_t_start_ = fps_t_end_;
+      fps_str_ = "FPS: " + std::to_string(std::round(fps));
+    }
+    cv::putText(vis.image, fps_str_, cv::Point2f(20,20), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(0,255,0));
+    
     // OpenCv image display
     // Show current frame
     cv::imshow(window_name, vis.image);
-    cv::waitKey(1);
+    cv::waitKey(48); // TODO: wrap this as fps
+
+#ifdef USE_TIMER
+    Timer timer("3. pangolin visualize");
+#endif
 
     // Clear entire screen
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -91,7 +118,10 @@ void Visualizer::Run() {
     }
 
     pangolin::FinishFrame();
-
+    
+#ifdef USE_TIMER
+    timer.Stop();
+#endif
     // Update Parameters
     this->settings_followcamera = settings_followcamera.Get();
     this->settings_showkeyframes = settings_showkeyframes.Get();

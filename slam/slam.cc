@@ -15,6 +15,7 @@
 #include "map.h"
 #include "frame.h"
 #include "keyframe.h"
+#include "timer.h"
 
 namespace lslam {
 
@@ -61,6 +62,8 @@ bool Slam::Init(const std::string config_file) {
   // Initialize mapper
   mapper_ = Mapper(map_, guided_matcher_, orb_extractor_);
 
+  visualization_data_ = std::make_shared<ThreadSafeQueue<VisualizedData>>();
+  
   // Start threads
   frame_consumer_thread_ = std::thread(&Slam::FrameConsumerLoop, this);
   visualization_thread_ = std::thread(&Slam::VisualizationLoop, this);
@@ -76,8 +79,26 @@ bool Slam::AddMonoImage(const cv::Mat &image, const double &timestamp) {
   }
   RawData input_data = {image, timestamp};
   
-  camera_meas_received_.PushBlockingIfFull(input_data, 1);
+  input_images_.PushBlockingIfFull(input_data, 1);
 } 
+
+/**
+ * @brief This shutdown all threadsafe queues and request all threads to finish.
+ * 
+ */
+void Slam::ShutDown() {
+  input_images_.ShutDown();
+  visualization_data_->ShutDown();
+  keyframes_.ShutDown();
+  
+  frame_consumer_thread_.join();
+  visualization_thread_.join();
+  mapper_thread_.join();
+  
+#ifdef USE_TIMER
+  LOG(INFO) << Timing::Print();
+#endif
+}
 
 void Slam::FrameConsumerLoop() {
   RawData input_data;
@@ -87,8 +108,12 @@ void Slam::FrameConsumerLoop() {
   std::shared_ptr<KeyFrame> keyframe;
   while (true) {
     // Get data from queue, and check for termination check
-    if (camera_meas_received_.PopBlocking(input_data) == false)
+    if (input_images_.PopBlocking(input_data) == false)
       return;
+
+#ifdef USE_TIMER
+    Timer timer("1. frontend process");
+#endif
 
     // Feed to frontend
     frontend_.Process(input_data.image, input_data.timestamp);
@@ -100,7 +125,7 @@ void Slam::FrameConsumerLoop() {
     // Visualization
     vis.frame = frame;
     vis.image = im;
-    camera_meas_visualized_.PushBlockingIfFull(vis, 1);
+    visualization_data_->PushBlockingIfFull(vis, 1);
 
     // 
     if (frontend_.state() == Frontend::kInitialized) {
@@ -113,11 +138,15 @@ void Slam::FrameConsumerLoop() {
         keyframes_.PushBlockingIfFull(frontend_.cur_keyframe(),1);
       }
     }
+
+#ifdef USE_TIMER
+    timer.Stop();
+#endif
   }
 }
 
 void Slam::VisualizationLoop() {
-  Visualizer visualizer(camera_meas_visualized_, map_);
+  Visualizer visualizer(visualization_data_, map_);
   visualizer.Run();
 }
 
@@ -126,9 +155,14 @@ void Slam::MapperLoop() {
   while (true) {
     if (keyframes_.PopBlocking(keyframe) == false)
       return;
-
+#ifdef USE_TIMER
+    Timer timer("2. mapper process");
+#endif
     // Feed to mapper
     mapper_.Process(keyframe);
+#ifdef USE_TIMER
+    timer.Stop();
+#endif
   }
 }
 

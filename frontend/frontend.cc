@@ -45,6 +45,48 @@ Frontend::Frontend(std::shared_ptr<Map> map,
                     
 }
 
+void Frontend::Process(cv::Mat image, double timestamp) {
+  
+  auto start = std::chrono::high_resolution_clock::now();
+  cur_frame_ = std::make_shared<Frame>(image, timestamp, orb_extractor_, camera_model_, orb_voc_);
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  std::cout << "Frame preprocess: " << elapsed.count() << " ms" << std::endl;
+
+  image_ = image.clone();
+  cv::cvtColor(image_, image_, CV_GRAY2BGR);
+  
+    // Get Map Mutex -> Map cannot be changed
+  std::unique_lock<std::mutex> lock(map_->mMutexMapUpdate);
+
+  if (state_ == FrontEndState::kTracking) {
+    bool tracked = DataAssociation(); 
+    if (!tracked) {
+      state_ = FrontEndState::kLost;
+    } 
+  }
+  else if (state_ == FrontEndState::kInitialized) {
+    // State: initialized  
+    state_ = Frontend::kTracking;
+    bool tracked = DataAssociation();
+    if (!tracked) {
+      state_ = FrontEndState::kLost;
+    }
+  } else if (state_ == FrontEndState::kNotInitialized) {
+    // State: not initialized
+    // We try to initialize the camera pose  
+    bool init_success = DataAssociationBootstrap();
+    if (init_success) {
+      state_ = FrontEndState::kInitialized;
+      LOG(INFO) << "Initialized!";
+    }
+  }
+
+  // Update tracking variables
+  last_frame_ = cur_frame_;
+}
+
+
 bool Frontend::DataAssociationBootstrap() {
   // Step1. Set a initial reference frame
   if (!init_frame_) {
@@ -186,48 +228,97 @@ bool Frontend::DataAssociationBootstrap() {
 
 }
 
-void Frontend::DataAssociation() {
-  // Track
-  bool tracked = false;
-  tracked = TrackToLastKeyFrame();
-  if (tracked) {
-    TrackToLocalMap();
+bool Frontend::DataAssociation() {
+  // Update last_frame corresponding mappoints.
+  // We may replaced some mappoints in mapper thread.
+  auto mps = last_frame_->mappoints();
+  for (size_t i = 0; i < mps.size(); ++i) {
+    auto mp = mps[i];
+    if (mp && mp->replaced_mp()) {
+      last_frame_->set_mappoint(i,mp->replaced_mp());
+    }
   }
+
+  // Track
+  bool tracked = TrackToLastFrame();
+  if (!tracked) {
+    tracked = TrackToLastKeyFrame();
+  }
+  if (!tracked)
+    return false;
+
+  tracked = TrackToLocalMap();
+
+  if (tracked) {
+    T_curl_ = cur_frame_->T_cw() * last_frame_->T_wc();
+    T_lr_ = cur_frame_->T_cw() * reference_keyframe_->T_wc();
+  } else {
+    T_curl_ = cv::Mat();
+    T_lr_ = cv::Mat();
+  }
+  
   CHECK(tracked) << "Track failed";
+  return tracked;
 }
 
 // TODO: method as a new class
 bool Frontend::TrackToLastFrame() {
-  // // No last frame
-  // if (!last_frame_) return false;
-  // // We do not have a predicted velocity
-  // if (!(last_frame_->T_cl().data)) return false;
+  // We do not have a predicted velocity
+  if (!T_curl_.data) 
+    return false;
 
-  // // Initialize current frame pose using predicted velocity
-  // // We assume camera as a const velocity model
-  // cur_frame_->SetPose(last_frame_->T_cl()*last_frame_->T_cw()); 
-  // // Perform active ORB searching and matching, we get 3d-2d matches
-  // // TUNE: search range
-  // int th = 15; 
-  // auto start = std::chrono::high_resolution_clock::now();
-  // std::vector<cv::DMatch> matches = guided_matcher_->ProjectionGuided3D2DMatcher(last_frame_, cur_frame_,th, 100, true, false);
-  // auto end = std::chrono::high_resolution_clock::now();
-  // std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-  // std::cout << "Guided match: " << elapsed.count() << " ms" << std::endl;
-  // // TUNE: 20?
-  // if (matches.size() < 20) return false;
+  // Reference keyframe may have optimized its pose,
+  // so we need to update pose of last frame.
+  if (!T_lr_.data) 
+    return false;
+  last_frame_->SetPose(T_lr_*reference_keyframe_->T_cw());
+  // Now we set an rough initial pose of current frame according to constant velocity model
+  cur_frame_->SetPose(T_curl_*last_frame_->T_cw());
 
-  // start = std::chrono::high_resolution_clock::now();
+  // TUNE:
+  int th = 15;
+  auto matches = guided_matcher_->ProjectionGuided3D2DMatcher(last_frame_,
+                                                              cur_frame_, 
+                                                              th, GuidedMatcher::kRadiusFromOctave,
+                                                              false, 100, true);
 
-  // std::cout<<"Before optimization: \n"<<cur_frame_->T_cw()<<std::endl;
-  // ORB_SLAM2::Optimizer::PoseOptimization(cur_frame_);
-  // std::cout<<"After optimization: \n"<<cur_frame_->T_cw()<<std::endl;
+  // TUNE:
+  if (matches.size() < 20) {
+    // Match with a wider window
+    matches = guided_matcher_->ProjectionGuided3D2DMatcher(last_frame_,
+                                                          cur_frame_, 
+                                                          2*th, GuidedMatcher::kRadiusFromOctave,
+                                                          false, 100, true);
+  }
 
-  // end = std::chrono::high_resolution_clock::now();
-  // elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-  // std::cout << "Motion-only optimization: " << elapsed.count() << " ms" << std::endl;
-  
-  // return true;
+  // Few matches, track failed.
+  if (matches.size() < 20) {
+    return false;
+  }
+
+  // Assign 3d mappoints of last to cur_frame_ according to matches
+  for(auto& match : matches) {
+    cur_frame_->set_mappoint(match.trainIdx, last_frame_->mappoint(match.queryIdx));
+  }
+
+  ORB_SLAM2::Optimizer::PoseOptimization(cur_frame_);
+
+  int n_match = 0;
+  // Kick out the outlier associated mappoint
+  for(size_t i = 0; i < cur_frame_->mappoints().size(); ++i) {
+    if (cur_frame_->mappoint(i)) {
+      if (cur_frame_->outlier(i)) {
+        cur_frame_->mappoint(i).reset();
+        cur_frame_->set_outlier(i, false);
+      } else {
+        n_match++;
+      }
+    }
+  }
+
+   // TUNE: 10
+  bool success = n_match >= 10;
+  return success;
 }
 
 bool Frontend::TrackToLastKeyFrame() {
@@ -323,40 +414,6 @@ bool Frontend::TrackToLocalMap() {
 
 }
 
-void Frontend::Process(cv::Mat image, double timestamp) {
-  
-  auto start = std::chrono::high_resolution_clock::now();
-  cur_frame_ = std::make_shared<Frame>(image, timestamp, orb_extractor_, camera_model_, orb_voc_);
-  auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-  std::cout << "Frame preprocess: " << elapsed.count() << " ms" << std::endl;
-
-  image_ = image.clone();
-  cv::cvtColor(image_, image_, CV_GRAY2BGR);
-  
-    // Get Map Mutex -> Map cannot be changed
-  std::unique_lock<std::mutex> lock(map_->mMutexMapUpdate);
-
-  if (state_ == FrontEndState::kTracking) {
-    DataAssociation();  
-  }
-  else if (state_ == FrontEndState::kInitialized) {
-    // State: initialized  
-    state_ = Frontend::kTracking;
-    DataAssociation();
-  } else if (state_ == FrontEndState::kNotInitialized) {
-    // State: not initialized
-    // We try to initialize the camera pose  
-    bool init_success = DataAssociationBootstrap();
-    if (init_success) {
-      state_ = FrontEndState::kInitialized;
-      LOG(INFO) << "Initialized!";
-    }
-  }
-
-  last_frame_ = cur_frame_;
-}
-
 bool Frontend::FrameIsKeyFrame() {
   // TUNE:
   int th_obs = 3;
@@ -385,6 +442,7 @@ void Frontend::CreateKeyFrame() {
   cur_keyframe_ = std::make_shared<KeyFrame>(*cur_frame_, map_);
   reference_keyframe_ = cur_keyframe_;
   last_frame_id_as_kf_ = cur_frame_->id();
+  T_lr_ = cv::Mat::eye(4,4,CV_64F);
 }
 
 void Frontend::set_map(std::shared_ptr<Map> map) {

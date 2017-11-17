@@ -3,7 +3,7 @@
  * Date: 2017-08-21
  */
 
-#ifndef FRONTEND_FTONTEND_H_
+#ifndef FRONTEND_FRONTEND_H_
 #define FRONTEND_FRONTEND_H_
 
 #include <opencv2/features2d.hpp>
@@ -33,6 +33,7 @@ public:
     kNotInitialized = 0, // Not initialized
     kInitialized,    // Just initialized, we use this state to publish two initial keyframes
     kTracking,       // Tracking
+    kLost,
   };
   
 public:
@@ -65,7 +66,7 @@ public:
   std::shared_ptr<Frame> cur_frame() const { return cur_frame_; }
 
   cv::Mat image() const { return image_.clone(); }
-  // Setters
+  // Mutators
   void set_map(std::shared_ptr<Map> map);
   void set_camera_model(std::shared_ptr<PinholeCamera> camera_model);
 
@@ -73,7 +74,7 @@ private:
   // Initial data association to create initial 3D map when we have a initial camera pose
   bool DataAssociationBootstrap();
   // Process incoming frames as quickly as possible
-  void DataAssociation();
+  bool DataAssociation();
 
   // Initial pose estimation from previous frame
   bool TrackToLastFrame();
@@ -104,9 +105,9 @@ private:
   std::shared_ptr<KeyFrame> cur_keyframe_;
   std::shared_ptr<KeyFrame> init_keyframe_;
 
-  std::shared_ptr<Frame> cur_frame_; // current camera_measurement
+  std::shared_ptr<Frame> cur_frame_; // current frame
   
-  std::shared_ptr<Frame> last_frame_; // previous camera_measurement
+  std::shared_ptr<Frame> last_frame_; // previous frame
 
   std::shared_ptr<Frame> init_frame_; // Initial frame used for initialization
   
@@ -115,6 +116,12 @@ private:
 
   //
   std::shared_ptr<KeyFrame> reference_keyframe_;
+  // Relative transformation from reference keyframe to last frame
+  // l -> last frame; r -> reference keyframe; cur -> current frame
+  cv::Mat T_lr_;
+  // Transformation from last frame to current frame
+  cv::Mat T_curl_;
+
   // Keyframe insertion decision parameters, TODO: wrap this out of Frontend class
   int max_keyframe_interval_;
   int min_keyframe_interval_;
