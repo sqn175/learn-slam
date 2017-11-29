@@ -10,7 +10,7 @@ parameters_reader.cc
 helper.cc
 range_searcher.cc
 visualizer.cc
-timer.cc
+time_logger.cc
 )
 
 target_link_libraries(${PROJECT_NAME}

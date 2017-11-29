@@ -23,6 +23,7 @@
 #include "keyframe.h"
 #include "map.h"
 #include "mappoint.h"
+#include "time_logger.h"
 
 namespace lslam {
 
@@ -46,16 +47,16 @@ Frontend::Frontend(std::shared_ptr<Map> map,
 }
 
 void Frontend::Process(cv::Mat image, double timestamp) {
-  
-  auto start = std::chrono::high_resolution_clock::now();
+#ifdef USE_TIMER
+  TimeLogger feature_extract_timer("2.0. extract ORB feature");
+#endif
   cur_frame_ = std::make_shared<Frame>(image, timestamp, orb_extractor_, camera_model_, orb_voc_);
-  auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::milliseconds elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-  std::cout << "Frame preprocess: " << elapsed.count() << " ms" << std::endl;
 
   image_ = image.clone();
   cv::cvtColor(image_, image_, CV_GRAY2BGR);
-  
+#ifdef USE_TIMER
+  feature_extract_timer.Stop();
+#endif
     // Get Map Mutex -> Map cannot be changed
   std::unique_lock<std::mutex> lock(map_->mMutexMapUpdate);
 
@@ -239,15 +240,42 @@ bool Frontend::DataAssociation() {
     }
   }
 
+#ifdef USE_TIMER
+  TimeLogger track_lastframe_timer("2.1. track to last frame");
+#endif
+
   // Track
   bool tracked = TrackToLastFrame();
+
+#ifdef USE_TIMER
+  track_lastframe_timer.Stop();
+#endif
+
   if (!tracked) {
+    
+#ifdef USE_TIMER
+    TimeLogger track_keyframe_timer("2.1. track to last keyframe");
+#endif
+
     tracked = TrackToLastKeyFrame();
+
+#ifdef USE_TIMER
+    track_keyframe_timer.Stop();
+#endif
+
   }
   if (!tracked)
     return false;
 
+#ifdef USE_TIMER
+  TimeLogger track_localmap_timer("2.2. track to local map");
+#endif
+
   tracked = TrackToLocalMap();
+
+#ifdef USE_TIMER
+  track_localmap_timer.Stop();
+#endif
 
   if (tracked) {
     T_curl_ = cur_frame_->T_cw() * last_frame_->T_wc();
@@ -275,6 +303,10 @@ bool Frontend::TrackToLastFrame() {
   // Now we set an rough initial pose of current frame according to constant velocity model
   cur_frame_->SetPose(T_curl_*last_frame_->T_cw());
 
+#ifdef USE_TIMER
+  TimeLogger match_timer("2.1.1 match to last frame");
+#endif
+
   // TUNE:
   int th = 15;
   auto matches = guided_matcher_->ProjectionGuided3D2DMatcher(last_frame_,
@@ -291,6 +323,10 @@ bool Frontend::TrackToLastFrame() {
                                                           false, 100, true);
   }
 
+#ifdef USE_TIMER
+  match_timer.Stop();
+#endif
+
   // Few matches, track failed.
   if (matches.size() < 20) {
     return false;
@@ -301,11 +337,20 @@ bool Frontend::TrackToLastFrame() {
     cur_frame_->set_mappoint(match.trainIdx, last_frame_->mappoint(match.queryIdx));
   }
 
+#ifdef USE_TIMER
+  TimeLogger optimize_timer("2.1.2 pose optimize");
+#endif
+
   ORB_SLAM2::Optimizer::PoseOptimization(cur_frame_);
+
+#ifdef USE_TIMER
+  optimize_timer.Stop();
+#endif
 
   int n_match = 0;
   // Kick out the outlier associated mappoint
-  for(size_t i = 0; i < cur_frame_->mappoints().size(); ++i) {
+  size_t mp_size = cur_frame_->mappoints().size();
+  for(size_t i = 0; i < mp_size ; ++i) {
     if (cur_frame_->mappoint(i)) {
       if (cur_frame_->outlier(i)) {
         cur_frame_->mappoint(i).reset();
@@ -339,7 +384,8 @@ bool Frontend::TrackToLastKeyFrame() {
 
   int n_match = 0;
   // Kick out the outlier associated mappoint
-  for(size_t i = 0; i < cur_frame_->mappoints().size(); ++i) {
+  size_t mp_size = cur_frame_->mappoints().size();
+  for(size_t i = 0; i < mp_size; ++i) {
     if (cur_frame_->mappoint(i)) {
       if (cur_frame_->outlier(i)) {
         cur_frame_->mappoint(i).reset();
@@ -367,8 +413,18 @@ bool Frontend::TrackToLocalMap() {
 
   // Step2. 3d2d match
   std:;vector<size_t> projectable_indices;
+
+#ifdef USE_TIMER
+  TimeLogger match_timer("2.2.1 match to local map");
+#endif
+
   auto matches = guided_matcher_->ProjectionGuided3D2DMatcher(mappoints, cur_frame_, 1, GuidedMatcher::kRadiusFromViewCosine,
                                                              false, 100, 0.8, projectable_indices);
+  
+#ifdef USE_TIMER
+  match_timer.Stop();
+#endif
+
   // Update mappoint statics
   auto mps = cur_frame_->mappoints();
   for (size_t i = 0; i < mps.size(); ++i) {
@@ -392,12 +448,21 @@ bool Frontend::TrackToLocalMap() {
       continue;
     cur_frame_->set_mappoint(match.trainIdx, mappoints[match.queryIdx]);
   }
-  
+
+#ifdef USE_TIMER
+  TimeLogger optimize_timer("2.2.2 motion-only BA");
+#endif
+
   // Optimize Pose
   ORB_SLAM2::Optimizer::PoseOptimization(cur_frame_);
   
+#ifdef USE_TIMER
+  optimize_timer.Stop();
+#endif
+
   n_match_to_localmap_ = 0;
-  for (size_t i = 0; i < cur_frame_->mappoints().size(); ++i) {
+  size_t mp_size = cur_frame_->mappoints().size();
+  for (size_t i = 0; i < mp_size; ++i) {
     if (cur_frame_->mappoint(i)) {
       if (cur_frame_->outlier(i)) {
         // We do nothing? Do we need to kick out the outlier mappoint?
@@ -407,7 +472,6 @@ bool Frontend::TrackToLocalMap() {
       }
     }
   }
-
   // TUNE: 30
   bool success = n_match_to_localmap_ >= 30;
   return success;
@@ -434,7 +498,7 @@ bool Frontend::FrameIsKeyFrame() {
   //Condition 1c: tracking is weak
   // Condition 2: Few tracked points compared to reference keyframe. Lots of visual odometry compared to map matches.
   // TUNE: 0.9
-  const bool c2 = n_match_to_localmap_ < n_match_reference_kf * 0.9;
+  const bool c2 = n_match_to_localmap_ < n_match_reference_kf * 0.6;
   return c2; 
 }
 

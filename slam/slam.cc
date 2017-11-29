@@ -15,7 +15,7 @@
 #include "map.h"
 #include "frame.h"
 #include "keyframe.h"
-#include "timer.h"
+#include "time_logger.h"
 
 namespace lslam {
 
@@ -23,7 +23,11 @@ Slam::Slam(const std::string config_file) {
   Init(config_file);
 }
 
-bool Slam::Init(const std::string config_file) {
+Slam::~Slam() {
+  ShutDown();
+}
+
+void Slam::Init(const std::string config_file) {
   // Read params from config_file
   params_.Read(config_file);
 
@@ -65,9 +69,10 @@ bool Slam::Init(const std::string config_file) {
   visualization_data_ = std::make_shared<ThreadSafeQueue<VisualizedData>>();
   
   // Start threads
-  frame_consumer_thread_ = std::thread(&Slam::FrameConsumerLoop, this);
-  visualization_thread_ = std::thread(&Slam::VisualizationLoop, this);
-  mapper_thread_ = std::thread(&Slam::MapperLoop, this);
+   mapper_thread_ = std::thread(&Slam::MapperLoop, this);
+   frame_consumer_thread_ = std::thread(&Slam::FrameConsumerLoop, this);
+   visualization_thread_ = std::thread(&Slam::VisualizationLoop, this);
+
 }
 bool Slam::AddMonoImage(const cv::Mat &image, const double &timestamp) {
   // Check image is valid
@@ -80,6 +85,8 @@ bool Slam::AddMonoImage(const cv::Mat &image, const double &timestamp) {
   RawData input_data = {image, timestamp};
   
   input_images_.PushBlockingIfFull(input_data, 1);
+
+  return true;
 } 
 
 /**
@@ -91,6 +98,7 @@ void Slam::ShutDown() {
   visualization_data_->ShutDown();
   keyframes_.ShutDown();
   
+  // TODO: check these thread is joinable
   frame_consumer_thread_.join();
   visualization_thread_.join();
   mapper_thread_.join();
@@ -112,7 +120,12 @@ void Slam::FrameConsumerLoop() {
       return;
 
 #ifdef USE_TIMER
-    Timer timer("1. frontend process");
+    std::shared_ptr<TimeLogger> timer;
+    if (frontend_.state() == Frontend::kNotInitialized) {
+      timer = std::make_shared<TimeLogger>("1. frontend init process");
+    } else {
+      timer = std::make_shared<TimeLogger>("2. frontend track process");
+    }
 #endif
 
     // Feed to frontend
@@ -126,7 +139,7 @@ void Slam::FrameConsumerLoop() {
     vis.frame = frame;
     vis.image = im;
     visualization_data_->PushBlockingIfFull(vis, 1);
-
+    
     // 
     if (frontend_.state() == Frontend::kInitialized) {
       // Initialized, we create the first two keyframes
@@ -140,7 +153,7 @@ void Slam::FrameConsumerLoop() {
     }
 
 #ifdef USE_TIMER
-    timer.Stop();
+    timer->Stop();
 #endif
   }
 }
@@ -156,7 +169,7 @@ void Slam::MapperLoop() {
     if (keyframes_.PopBlocking(keyframe) == false)
       return;
 #ifdef USE_TIMER
-    Timer timer("2. mapper process");
+    TimeLogger timer("3. mapper process");
 #endif
     // Feed to mapper
     mapper_.Process(keyframe);

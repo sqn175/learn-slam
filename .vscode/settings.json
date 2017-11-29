@@ -51,7 +51,7 @@
         "hash_map": "cpp",
         "hash_set": "cpp"
     },
-    "window.zoomLevel": -2,
+    "window.zoomLevel": -1,
     "cSpell.words": [
         "Bextractor",
         "Dbow",

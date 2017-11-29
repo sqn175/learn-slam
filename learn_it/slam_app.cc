@@ -56,13 +56,20 @@ int main(int argc, char **argv){
   // Display info
   std::cout<<"No. images: "<<image_str.size()<<std::endl;
 
+  double start_time = 1403637202188318976/1e9;
+  int i = 0;
+  for (; i < image_str.size(); ++i) {
+    if (timestamps[i] < start_time) continue;
+    else break;
+  }
+  
   // Feed image to slam system
   //for (int i = 0; i < image_str.size(); ++i) {
-  for (int i = 0; i < 90; ++i) {
-    cv::Mat image = cv::imread(images_file_name + image_str[i], CV_LOAD_IMAGE_UNCHANGED);
+  for (int j = i; j < i+800; ++j) {
+    cv::Mat image = cv::imread(images_file_name + image_str[j], CV_LOAD_IMAGE_UNCHANGED);
     // test
-    if (timestamps[i] < 1403637202188318976/1e9) continue;
-    slam.AddMonoImage(image, timestamps[i]);
+    
+    slam.AddMonoImage(image, timestamps[j]);
 
   }
   

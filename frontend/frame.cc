@@ -32,9 +32,6 @@ Frame::Frame(const cv::Mat& image,double timestamp,
 {
   static unsigned long unique_id = 0;
   id_ = unique_id++;
-
-  // test
-  LOG(INFO) << "Frame " << id_;
   
   // Extract ORB
   CHECK(image.data) << "This Frame is not initialized with image";

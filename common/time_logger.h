@@ -1,5 +1,5 @@
-#ifndef COMMON_TIMER_H_
-#define COMMON_TIMER_H_
+#ifndef COMMON_TIME_LOGGER_H_
+#define COMMON_TIME_LOGGER_H_
 
 #include <chrono>
 #include <string>
@@ -11,17 +11,17 @@
 
 namespace lslam {
 
-typedef std::chrono::milliseconds TimeT;
-typedef std::chrono::steady_clock ClockT;
+using TimeT = std::chrono::milliseconds;
+using ClockT = std::chrono::steady_clock;
 
-class Timer {
+class TimeLogger {
 public:
-  Timer(size_t handle, bool construct_stopped = false);
-  Timer(const std::string& tag, bool construct_stopped = false);
+  TimeLogger(size_t handle, bool construct_stopped = false);
+  TimeLogger(const std::string& tag, bool construct_stopped = false);
   // Forbid nonsense timer 
-  Timer(const Timer&) = delete;
-  Timer& operator=(const Timer&) = delete;
-  ~Timer();
+  TimeLogger(const TimeLogger&) = delete;
+  TimeLogger& operator=(const TimeLogger&) = delete;
+  ~TimeLogger();
 
   void Start();
   void Stop();
@@ -35,7 +35,7 @@ private:
 
 class Timing{
 public:
-  friend class Timer;
+  friend class TimeLogger;
 
   // Static functions to query the timers:
   static size_t GetHandle(const std::string& tag);
@@ -74,4 +74,4 @@ private:
 };
 
 } // namespace LSLAM
-#endif  //COMMON_TIMER_H_
+#endif  //COMMON_TIME_LOGGER_H_

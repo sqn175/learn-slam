@@ -42,11 +42,16 @@ public:
 
   // Construct from a configuration file
   explicit Slam(const std::string config_file);
+  // Slam is neither copyable nor movable
+  Slam(const Slam&) = delete;
+  Slam& operator=(const Slam&) = delete;
 
+  ~Slam();
+  
   // Initialize Slam system, including:
   // - Launch theads: tracking thread
   // - Initialize visualization routine
-  bool Init(const std::string config_file);
+  void Init(const std::string config_file);
 
   // Feed a monocular image frame to system and process it.
   // Input: monocular RGB(CV_8UC3) or grayscale (CV_8U) image
@@ -62,9 +67,6 @@ private:
   void OptimizationLoop();
 
 private:
-  // Slam is neither copyable nor movable
-  Slam(const Slam&) = delete;
-  Slam& operator=(const Slam&) = delete;
 
   // Parameters reader
   ParametersReader params_;

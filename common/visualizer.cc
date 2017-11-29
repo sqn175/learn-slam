@@ -9,11 +9,12 @@
 
 #include <vector>
 #include <thread>
+#include <string>
 
 #include "map.h"
 #include "keyframe.h"
 #include "mappoint.h"
-#include "timer.h"
+#include "time_logger.h"
 
 namespace lslam {
 
@@ -26,6 +27,10 @@ Visualizer::Visualizer(std::shared_ptr<ThreadSafeQueue<VisualizedData>> queue, s
 }
 
 void Visualizer::Run() {
+
+  // Read groundtruth
+  
+
   // Opencv display image
   std::string window_name = "frame";
   cv::namedWindow(window_name);
@@ -68,11 +73,11 @@ void Visualizer::Run() {
      if (frame_queue_->PopBlocking(vis) == false)
        return;
 
-//    frame_queue_.PopNonBlocking(vis);
-//    if (!vis.image.data) {
-//      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-//      continue;
-//    }
+  //  frame_queue_->PopNonBlocking(vis);
+  //  if (!vis.image.data) {
+  //    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  //    continue;
+  //  }
     // Update fps
     ++n_frames_;
     fps_t_end_ = std::chrono::steady_clock::now();
@@ -93,7 +98,7 @@ void Visualizer::Run() {
     cv::waitKey(48); // TODO: wrap this as fps
 
 #ifdef USE_TIMER
-    Timer timer("3. pangolin visualize");
+    TimeLogger timer("4. pangolin visualize");
 #endif
 
     // Clear entire screen

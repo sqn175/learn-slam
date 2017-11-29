@@ -1,4 +1,4 @@
-#include "timer.h"
+#include "time_logger.h"
 
 #include <stdio.h> // printf()
 #include <math.h>  // fmod()
@@ -54,7 +54,7 @@ std::string Timing::GetTag(size_t handle) {
   return tag;
 }
 
-Timer::Timer(size_t handle, bool construct_stopped)
+TimeLogger::TimeLogger(size_t handle, bool construct_stopped)
   : is_timing_(false)
   , handle_(handle) {
   CHECK(handle < Timing::instance().timers_.size()) << "The handle is invalid. Handle: " << 
@@ -63,7 +63,7 @@ Timer::Timer(size_t handle, bool construct_stopped)
     Start();
 }
 
-Timer::Timer(const std::string& tag, bool construct_stopped)
+TimeLogger::TimeLogger(const std::string& tag, bool construct_stopped)
   : is_timing_(false)
   , handle_(Timing::GetHandle(tag)) {
 
@@ -71,18 +71,18 @@ Timer::Timer(const std::string& tag, bool construct_stopped)
     Start();
 }
 
-Timer::~Timer() {
+TimeLogger::~TimeLogger() {
   if (is_timing())
     Stop();
 }
 
-void Timer::Start() {
+void TimeLogger::Start() {
   CHECK(!is_timing_) << "The timer " + Timing::GetTag(handle_) + " is already running";
   is_timing_ = true;
   time_ = ClockT::now();
 }
 
-void Timer::Stop() {
+void TimeLogger::Stop() {
   CHECK(is_timing_) << "The timer " + Timing::GetTag(handle_) + " is not running";
   auto time_now = ClockT::now();
   auto duration = std::chrono::duration_cast<TimeT>(time_now - time_);
@@ -91,11 +91,11 @@ void Timer::Stop() {
   is_timing_ = false;
 }
 
-bool Timer::is_timing() const{
+bool TimeLogger::is_timing() const{
   return is_timing_;
 }
 
-void Timer::DiscardTiming() {
+void TimeLogger::DiscardTiming() {
   is_timing_ = false;
 }
 
@@ -182,11 +182,12 @@ void Timing::Print(std::ostream& out) {
     out.setf(std::ios::right, std::ios::adjustfield);
     out << GetNumSamples(i) << "\t";
     if (GetNumSamples(i) > 0) {
-      out << SecondsToTimeString(GetTotalSeconds(i)) << "\t";
-      double mean_sec = GetMeanSeconds(i);
-      double stddev = sqrt(GetVarianceSeconds(i));
-      out << "(" << SecondsToTimeString(mean_sec) << "+-";
-      out << SecondsToTimeString(stddev) << ")\t";
+      out<< "Mean(/ms) " << SecondsToTimeString(GetMeanSeconds(i));
+      // out << SecondsToTimeString(GetTotalSeconds(i)) << "\t";
+      // double mean_sec = GetMeanSeconds(i);
+      // double stddev = sqrt(GetVarianceSeconds(i));
+      // out << "(" << SecondsToTimeString(mean_sec) << "+-";
+      // out << SecondsToTimeString(stddev) << ")\t";
 
       double min_sec = GetMinSeconds(i);
       double max_sec = GetMaxSeconds(i);
@@ -203,13 +204,17 @@ std::string Timing::Print() {
 }
 
 std::string Timing::SecondsToTimeString(double seconds) {
-  double secs = fmod(seconds, 60);
-  int minutes = (long)(seconds / 60);
-  int hours = (long)(seconds/ 3600);
-  minutes = minutes - (hours*60);
+  // double secs = fmod(seconds, 60);
+  // int minutes = (long)(seconds / 60);
+  // int hours = (long)(seconds/ 3600);
+  // minutes = minutes - (hours*60);
 
+  // char buffer[256];
+  // sprintf(buffer, "%02d:%02d:%09.6f",hours,minutes,secs);
+  // return buffer;
   char buffer[256];
-  sprintf(buffer, "%02d:%02d:%09.6f",hours,minutes,secs);
+  sprintf(buffer, "%09.6f",seconds * 1000);
   return buffer;
+
 }
 } // namespace LSLAM

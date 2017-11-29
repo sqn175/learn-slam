@@ -15,6 +15,7 @@
 #include "map.h"
 #include "cv.h"
 #include "guided_matcher.h"
+#include "time_logger.h"
 
 #include "Optimizer.h"
 #include "../3rdparty/ORB_SLAM2_modified/ORBextractor.h"
@@ -39,17 +40,53 @@ Mapper::Mapper(std::shared_ptr<Map> map,
 
 void Mapper::Process(std::shared_ptr<KeyFrame> keyframe) {
   cur_keyframe_ = keyframe;
+
+#ifdef USE_TIMER
+  TimeLogger timer_3_1("3.1 insert keyframe and cull mappoints");
+#endif
+
   InsertKeyFrame(keyframe);
   CullMapPoints(keyframe);
+
+#ifdef USE_TIMER
+  timer_3_1.Stop();
+#endif
+
+#ifdef USE_TIMER
+  TimeLogger timer_3_2("3.2 triangulate new mappoints");
+#endif
+
   TriangulateNewMapPoints(keyframe);
+
+#ifdef USE_TIMER
+  timer_3_2.Stop();
+#endif
+
   if (map_->SizeOfKeyframes() <= 2) {
     return;
   }
+
+#ifdef USE_TIMER
+  TimeLogger timer_3_3("3.3 fuse and match mappoints");
+#endif
+
   FuseAndAssociateMapPoints(keyframe);
+
+#ifdef USE_TIMER
+  timer_3_3.Stop();
+#endif
   // ORB_SLAM may set mbAbortBA as true to stop local BA
   // TODO: consider if we need this mechanism
   bool mbAbortBA = false;
+
+#ifdef USE_TIMER
+  TimeLogger timer_3_4("3.4 local BA");
+#endif
   ORB_SLAM2::Optimizer::LocalBundleAdjustment(keyframe, map_);
+
+#ifdef USE_TIMER
+  timer_3_4.Stop();
+#endif
 
   CullKeyFrames(keyframe);
 }

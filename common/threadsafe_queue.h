@@ -16,6 +16,8 @@
 
 #include <glog/logging.h>
 
+#define _GLIBCXX_DTS2_CONDITION_VARIABLE_ANY
+
 namespace lslam {
 
 template <typename QueueType>
@@ -47,13 +49,13 @@ void Resume() {
 }
 
 size_t Size() {
-  std::unique_lock<std::mutex> lock(mutex_);
+  std::unique_lock<std::mutex> lk(mutex_);
   size_t size = queue_.size();
   return size;
 }
 
 bool Empty() {
-  std::unique_lock<std::mutex> lock(mutex_);
+  std::unique_lock<std::mutex> lk(mutex_);
   bool empty = queue_.empty();
   return empty;
 }
@@ -61,10 +63,10 @@ bool Empty() {
 // Push the value to queue if the queue actual size is less than max_queue_size(not full), else block 
 bool PushBlockingIfFull(const QueueType& value, size_t max_queue_size) {
   while (!shut_down_) {
-    std::unique_lock<std::mutex> lock(mutex_);
+    std::unique_lock<std::mutex> lk(mutex_);
     size_t size = queue_.size();
     if (size >= max_queue_size) {
-      cond_not_full_.wait(lock);
+      cond_not_full_.wait(lk);
     }
     if (size >= max_queue_size) {
       // A spurious wakeup
@@ -83,9 +85,9 @@ bool PushBlockingIfFull(const QueueType& value, size_t max_queue_size) {
 
 bool PopBlocking(QueueType& value) {
   while (!shut_down_) {
-    std::unique_lock<std::mutex> lock(mutex_);
+    std::unique_lock<std::mutex> lk(mutex_);
     if (queue_.empty()) {
-      cond_not_empty_.wait(lock);
+      cond_not_empty_.wait(lk);
     }
     if (queue_.empty()) {
       //lock.unlock();
@@ -101,7 +103,7 @@ bool PopBlocking(QueueType& value) {
 }
 
 bool PopNonBlocking(QueueType& value) {
-  std::unique_lock<std::mutex> lock(mutex_);
+  std::unique_lock<std::mutex> lk(mutex_);
   if (queue_.empty()) {
     return false;
   }
