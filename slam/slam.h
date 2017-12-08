@@ -13,6 +13,7 @@
 #include <memory>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
+#include <vector>
 
 #include "glog/logging.h"
 
@@ -60,6 +61,7 @@ public:
 
   void ShutDown();
 
+  void SaveTrajectory(const std::string& filename);
 private:
   void FrameConsumerLoop();
   void VisualizationLoop();
@@ -100,6 +102,12 @@ private:
   Frontend frontend_; // The frontend
   Mapper mapper_;
 
+  // Lists used to recover the full camera trajectory at the end of execution
+  // Basically we store the reference keyframe for each frame and its relative transformation
+  std::vector<cv::Mat> relative_frame_poses_; 
+  std::vector<std::shared_ptr<KeyFrame>> ref_keyframes_;
+  std::vector<double> frame_timestamps_;
+  
 };
     
 } // namespace lslam

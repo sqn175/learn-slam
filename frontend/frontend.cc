@@ -85,6 +85,7 @@ void Frontend::Process(cv::Mat image, double timestamp) {
 
   // Update tracking variables
   last_frame_ = cur_frame_;
+
 }
 
 
@@ -404,7 +405,13 @@ bool Frontend::TrackToLastKeyFrame() {
 bool Frontend::TrackToLocalMap() {
   // Step1. Retrive local map
   //        Local map consists of mappoints and keyframes associated to current frame
+  // test
+  TimeLogger timer1("t1");
+  // test end
   cur_frame_->SetConnectedKeyFrames();
+
+  timer1.Stop();
+
   // TODO: consider whether we should store the connected mappoints in the Frame class
   // We do not search the mappoints already associated to cur_frame keypoints 
   // in the previous TrackToLastFrame or TrackToLastKeyFrame functions
@@ -495,11 +502,11 @@ bool Frontend::FrameIsKeyFrame() {
   const bool c1_a = cur_frame_->id() >= last_frame_id_as_kf_ + max_keyframe_interval_;
   // Condition 1b: More than "MinFrames" have passed and Local Mapping is idle
   const bool c1_b = cur_frame_->id() >= last_frame_id_as_kf_ + min_keyframe_interval_;
-  //Condition 1c: tracking is weak
+  // Condition 1c: tracking is weak
   // Condition 2: Few tracked points compared to reference keyframe. Lots of visual odometry compared to map matches.
   // TUNE: 0.9
   const bool c2 = n_match_to_localmap_ < n_match_reference_kf * 0.6;
-  return c2; 
+  return c1_a || c2; 
 }
 
 void Frontend::CreateKeyFrame() {

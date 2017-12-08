@@ -290,9 +290,16 @@ void Mapper::FuseAndAssociateMapPoints(std::shared_ptr<KeyFrame> keyframe) {
       extended_connected_keyframes.insert(nei_of_nei);
     }
   }
+  
 
   // Search matches by projecting keyframe associated mappoints to neighbor keyframes 
   for (auto& nei : extended_connected_keyframes) {
+  // test
+  if (keyframe->id() == 27 && nei->id() == 17) {
+    int a = 0;
+    int b = a;
+  }
+  // test end
 
     auto matches = guided_matcher_->ProjectionGuided3D2DMatcher(keyframe->mappoints(),
                                                                 nei, 3.0, GuidedMatcher::kRadiusFromOctave,

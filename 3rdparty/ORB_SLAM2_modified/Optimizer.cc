@@ -75,7 +75,7 @@ void Optimizer::BundleAdjustment(const std::vector<std::shared_ptr<lslam::KeyFra
     if(pbStopFlag)
         optimizer.setForceStopFlag(pbStopFlag);
 
-    unsigned long  maxKFid = 0;
+    unsigned long maxKFid = 0;
 
     // Set KeyFrame vertices
     for(size_t i=0; i<vpKFs.size(); i++)

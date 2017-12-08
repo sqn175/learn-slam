@@ -112,6 +112,31 @@ bool PopNonBlocking(QueueType& value) {
   return true;
 }
 
+bool PopNonBlocking() {
+  std::unique_lock<std::mutex> lk(mutex_);
+  if (queue_.empty()) {
+    return false;
+  }
+  queue_.pop();
+  cond_not_full_.notify_one();
+  return true;
+}
+
+bool GetCopyOfFrontBlocking(QueueType& value) {
+  while (!shut_down_) {
+    std::unique_lock<std::mutex> lk(mutex_);
+    if (queue_.empty()) {
+      cond_not_empty_.wait(lk);
+    }
+    if (queue_.empty()) {
+      continue;
+    }
+    value = queue_.front();
+    return true;
+  }
+  return false;
+}
+
 private:
   std::queue<QueueType> queue_; // Actual queue
   std::mutex mutex_; // The queue mutex

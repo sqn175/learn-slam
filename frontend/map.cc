@@ -5,7 +5,7 @@
 
 #include "map.h"
 #include "mappoint.h"
-#include "keyframe.h"
+
 namespace lslam {
 
 extern int DEBUG_ID;

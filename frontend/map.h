@@ -11,10 +11,12 @@
 #include <vector>
 #include <mutex>
 
+#include "keyframe.h"
+
 namespace lslam {
 
 class MapPoint;
-class KeyFrame;
+//class KeyFrame;
 // TODO: using a thread-safe hashmap?
 // Thread safe map
 class Map {
@@ -38,7 +40,7 @@ public:
   std::mutex mMutexMapUpdate;
   
 private:
-  std::set<std::shared_ptr<KeyFrame>> keyframes_; // all keyframes in the map
+  std::set<std::shared_ptr<KeyFrame>, KeyFrame::compare> keyframes_; // all keyframes in the map
   // TODO: consider do we need mappoints_ as member
   std::set<std::shared_ptr<MapPoint>> mappoints_; // all mappoints in the map
 

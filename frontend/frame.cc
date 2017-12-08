@@ -247,6 +247,7 @@ void Frame::SetConnectedKeyFrames() {
       continue;
 
     all_connected_keyframes.insert(kf);
+    
     // TUNE: 10
     auto neighbors_of_kf = kf->GetConnectedKeyFrames(10);
     for (auto& neighbor : neighbors_of_kf) {

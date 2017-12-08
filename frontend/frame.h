@@ -49,6 +49,7 @@ public:
 
   // Accessors
   virtual unsigned long id() const;
+  virtual double timestamp() const {return timestamp_;}
   std::vector<cv::KeyPoint> keypoints() const;
   const cv::KeyPoint& keypoint(size_t idx) const;
   const std::vector<cv::KeyPoint>& undistorted_kps() const;

@@ -70,7 +70,7 @@ void Visualizer::Run() {
   T_wc.SetIdentity();
 
   while (!pangolin::ShouldQuit()) {
-     if (frame_queue_->PopBlocking(vis) == false)
+     if (frame_queue_->GetCopyOfFrontBlocking(vis) == false)
        return;
 
   //  frame_queue_->PopNonBlocking(vis);
@@ -131,6 +131,8 @@ void Visualizer::Run() {
     this->settings_followcamera = settings_followcamera.Get();
     this->settings_showkeyframes = settings_showkeyframes.Get();
     this->settings_showlandmarks = settings_showlandmarks.Get();
+
+    frame_queue_->PopNonBlocking();
   }
 
 }

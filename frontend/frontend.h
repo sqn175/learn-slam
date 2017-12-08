@@ -6,6 +6,9 @@
 #ifndef FRONTEND_FRONTEND_H_
 #define FRONTEND_FRONTEND_H_
 
+#include <list>
+
+#include <opencv2/core.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/calib3d.hpp>
 #include <glog/logging.h>
@@ -102,7 +105,7 @@ private:
   FrontEndState state_;  // frontend state
   
   // TODO: redesign this interference, do we need to handle keyframe things in this class?
-  std::shared_ptr<KeyFrame> cur_keyframe_;
+  std::shared_ptr<KeyFrame> cur_keyframe_; // TODO: its reference_keyframe, wrap it out
   std::shared_ptr<KeyFrame> init_keyframe_;
 
   std::shared_ptr<Frame> cur_frame_; // current frame
@@ -117,7 +120,12 @@ private:
   //
   std::shared_ptr<KeyFrame> reference_keyframe_;
   // Relative transformation from reference keyframe to last frame
-  // l -> last frame; r -> reference keyframe; cur -> current frame
+  // TODO: update transformation matrix naming rules
+  // Transformation naming rules:
+  // T_coord_t: the transformation matrix at time t expressed in coordinate coord.
+  // coord: c -> camera coordinates; w -> world coordinates; b -> body coordinates
+  // t: c -> current frame time; l -> last frame time; n -> next frame time; r -> reference frame time
+  // e.g. T_cw_cr*T_w_r = T_c_c
   cv::Mat T_lr_;
   // Transformation from last frame to current frame
   cv::Mat T_curl_;
@@ -128,6 +136,7 @@ private:
   size_t last_frame_id_as_kf_;
   int n_match_to_localmap_;
   // Associated local 
+
 };
 
 } // namespace lslam

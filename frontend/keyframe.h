@@ -75,7 +75,12 @@ public:
 
   void SetBadFlag();
 
-  
+public:
+  struct compare {
+    bool operator() (const std::shared_ptr<KeyFrame> lhs, const std::shared_ptr<KeyFrame> rhs) {
+      return lhs->id() < rhs->id();
+    }
+  };
 
 private:
   // Unique keyframe id, 0,1,2,...

@@ -56,8 +56,8 @@ int main(int argc, char **argv){
   // Display info
   std::cout<<"No. images: "<<image_str.size()<<std::endl;
 
-  double start_time = 1403637202188318976/1e9;
-  int i = 0;
+  double start_time = 1403637133188318976/1e9;
+  size_t i = 0;
   for (; i < image_str.size(); ++i) {
     if (timestamps[i] < start_time) continue;
     else break;
@@ -65,13 +65,15 @@ int main(int argc, char **argv){
   
   // Feed image to slam system
   //for (int i = 0; i < image_str.size(); ++i) {
-  for (int j = i; j < i+800; ++j) {
+  for (size_t j = i; j < image_str.size(); ++j) {
     cv::Mat image = cv::imread(images_file_name + image_str[j], CV_LOAD_IMAGE_UNCHANGED);
     // test
     
     slam.AddMonoImage(image, timestamps[j]);
 
   }
+
+  slam.SaveTrajectory("/home/sqn/Documents/learn-slam/build/trajectory.csv");
   
   return 0;
 }

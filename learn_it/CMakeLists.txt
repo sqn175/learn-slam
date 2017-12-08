@@ -26,14 +26,19 @@ project(learn_it)
 #   common
 #   )
 
-  add_executable(slam_app slam_app.cc)
-  target_link_libraries(slam_app
-    ${OpenCV_LIBS}
-    ${GLOG_LIBRARY}
-    ORB_SLAM2
-    frontend
-    common
-    slam
-    )
+add_executable(slam_app slam_app.cc)
+target_link_libraries(slam_app
+  ${OpenCV_LIBS}
+  ${GLOG_LIBRARY}
+  ORB_SLAM2
+  frontend
+  common
+  slam
+  )
 
-  add_executable(testdebug test.cc)
+add_executable(testdebug test.cc)
+add_executable(evaluation evaluate_euroc.cc)
+target_link_libraries(evaluation
+  ${OpenCV_LIBS}
+  ${GLOG_LIBRARY}
+)

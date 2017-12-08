@@ -6,6 +6,7 @@
                 "type": "cppdbg",
                 "request": "launch",
                 "program": "${workspaceRoot}/build/learn_it/slam_app",
+                // "program": "${workspaceRoot}/build/learn_it/evaluation",
                 "args": ["GLOG_v=2"],
                 "stopAtEntry": false,
                 "cwd": "${workspaceRoot}",

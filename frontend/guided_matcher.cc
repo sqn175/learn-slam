@@ -46,6 +46,9 @@ std::vector<cv::DMatch> GuidedMatcher::Matcher(const cv::Mat &query_descriptors,
                                                const float dist_th,
                                                const float ratio)
 {
+  // 
+  if (query_indices.size() == 0)
+    return std::vector<cv::DMatch>();
   int n = query_descriptors.rows;
   CHECK(n == query_indices.size() && n == guided_train_indices.size());
   CHECK(query_descriptors.cols == train_descriptors.cols);
@@ -533,7 +536,10 @@ std::vector<cv::DMatch> GuidedMatcher::CheckRotation(std::shared_ptr<Frame> quer
     if (rot < 0.0)
       rot += 360.0f;
     int bin = std::floor(rot / histo_width);
-    CHECK(bin >= 0 && bin < histo_len);
+    CHECK(bin >= 0 && bin <= histo_len);
+    if (bin == histo_len) {
+      bin = 0;
+    }
     rot_hist[bin].push_back(idx);
   }
 
