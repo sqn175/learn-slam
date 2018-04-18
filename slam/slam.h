@@ -18,7 +18,7 @@
 #include "glog/logging.h"
 
 #include "../3rdparty/ORB_SLAM2_modified/ORBextractor.h"
-#include "parameters_reader.h"
+#include "params_man.h"
 #include "pinhole_camera.h"
 #include "threadsafe_queue.h"
 #include "frontend.h"
@@ -69,10 +69,6 @@ private:
   void OptimizationLoop();
 
 private:
-
-  // Parameters reader
-  ParametersReader params_;
-
   //// Thread safe members
   // Map shared by all threads
   std::shared_ptr<Map> map_;

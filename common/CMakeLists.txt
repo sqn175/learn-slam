@@ -6,7 +6,7 @@ include_directories(
 )
 
 add_library(${PROJECT_NAME} STATIC
-parameters_reader.cc
+params_man.cc
 helper.cc
 range_searcher.cc
 visualizer.cc

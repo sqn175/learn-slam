@@ -18,7 +18,7 @@
 #include "../3rdparty/DBoW2/DBoW2/TemplatedVocabulary.h"
 
 #include "pinhole_camera.h"
-#include "parameters_reader.h"
+#include "params_man.h"
 #include "guided_matcher.h"
 #include "cv.h"
 #include "helper.h"

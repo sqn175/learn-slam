@@ -38,7 +38,7 @@ void RangeSearcher::BuildGrids(const std::vector<cv::KeyPoint>& points, const cv
     int grid_col = std::round( (kp.pt.x-min_x_)*grid_size_inv_ );
     int grid_row = std::round( (kp.pt.y-min_y_)*grid_size_inv_ );
     if (grid_col < 0 || grid_col >= grids_cols_ || grid_row < 0 || grid_row >= grids_rows_) {
-      LOG(INFO) << "Assign feature to girds out of range.";
+      LOG(INFO) << "Assign feature to grids out of range.";
       continue;
     }
     grids_[grid_row][grid_col].push_back(i);
@@ -69,7 +69,7 @@ std::vector<size_t> RangeSearcher::PointsInRange(const cv::Mat& search_bounds) {
       if (points_in_this_grid.empty())
         continue;
       
-      // TODO: if we shoudl deep check the points in this grid is in search_bounds
+      // TODO: if we should deep check the points in this grid is in search_bounds
       for (auto idx : points_in_this_grid) {
         indices.push_back(idx);
       }

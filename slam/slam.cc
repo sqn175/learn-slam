@@ -34,20 +34,19 @@ Slam::~Slam() {
 
 void Slam::Init(const std::string config_file) {
   // Read params from config_file
-  params_.Read(config_file);
+  ParamsMan::Instance().Read(config_file);
 
   // Initialize camera model
   // TODO: Check pinholecamera_params != null
   // Smart pointer initialize
-  camera_model_ = std::make_shared<PinholeCamera>(params_.pinholecamera_params());
+  camera_model_ = std::make_shared<PinholeCamera>(ParamsMan::Instance().pinholecamera_params);
   
   // Initialize ORB extractor
-  // TODO: using params to initialize
-  int features = 2000;
-  float scale = 1.2;
-  int level = 8;
-  int ini = 20;
-  int min = 7;
+  int features = ParamsMan::Instance().feature_params.n_feat;
+  float scale = ParamsMan::Instance().feature_params.scale_factor;
+  int level = ParamsMan::Instance().feature_params.levels;
+  int ini = ParamsMan::Instance().feature_params.init_th_Fast;
+  int min = ParamsMan::Instance().feature_params.min_th_Fast;
   orb_extractor_ = std::make_shared<ORB_SLAM2::ORBextractor>(features, scale, level, ini, min);
   
   // Loading ORB vocabulary

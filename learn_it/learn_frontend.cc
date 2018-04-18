@@ -15,7 +15,7 @@
 #include <opencv2/opencv.hpp>
 
 #include <ORBextractor.h>
-#include "parameters_reader.h"
+#include "params_man.h"
 #include "pinhole_camera.h"
 #include "camera_measurement.h"
 #include "my_assert.h"
@@ -27,7 +27,7 @@ int main(int argc, char **argv){
 
   // configuration file
   std::string config_file_name = "/home/sqn/Documents/learn-slam/config/config_fpga_p2_euroc.yaml";
-  lslam::ParametersReader parameters_reader(config_file_name);
+  lslam::ParamsMan parameters_reader(config_file_name);
   
   //
   auto pinhole_camera = std::make_shared<const lslam::PinholeCamera>(parameters_reader.pinholecamera_params());

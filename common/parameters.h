@@ -7,6 +7,7 @@
 #define COMMON_PARAMETERS_H_
 
 #include <string>
+#include <vector>
 
 namespace lslam {
 
@@ -27,6 +28,20 @@ struct PinholeCameraParameters{
 
   int frame_rate;          // frame rate
 };
+
+struct FeatureParameters {
+  int n_feat; // features extracted per image
+  double scale_factor; 
+  int levels; 
+  int init_th_Fast;
+  int min_th_Fast;
+
+  std::vector<float> scale_factors;
+  std::vector<float> inv_scale_factors;    
+  std::vector<float> level_sigma2;
+  std::vector<float> inv_level_sigma2;
+};
+
 } // namespace LSLAM
 
 #endif  //COMMON_PARAMETERS_H_
